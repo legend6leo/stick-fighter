@@ -1,15 +1,26 @@
 'use strict';
-// ============ 火柴人格斗 Stick Fighter v3 ============
+// ============ 火柴人格斗 Stick Fighter v4 ============
 // 布局(死神vs火影式): A/D移动 W上 S防御/下 K跳 J普攻(三段连) I必杀(耗气) O大招 L冲刺
-// v3: 觉醒变身(满气J+K,整回合) / 撞墙+落地反弹 / 4张视差场景 / KO慢动作
+// v4: 手机触控 / 暂停与重开 / 四地图单向平台 / 觉醒与反弹系统
 const cvs = document.getElementById('c');
 const ctx = cvs.getContext('2d');
+const pauseToggle = document.getElementById('pause-toggle');
+const pauseOverlay = document.getElementById('pause-overlay');
+const pauseResume = document.getElementById('pause-resume');
+const pauseRestart = document.getElementById('pause-restart');
+const pauseSelect = document.getElementById('pause-select');
 const W = 1280, H = 720, GROUND = 640;
 const SP_COST = 30;
 
 // ---------- 输入 ----------
 const keys = {}, pressed = {};
 window.addEventListener('keydown', e => {
+  if ((e.code==='Escape' || e.code==='KeyP') && scene==='fight'){
+    if (!e.repeat) setPaused(!paused);
+    e.preventDefault();
+    return;
+  }
+  if (paused){ e.preventDefault(); return; }
   if (!keys[e.code]) pressed[e.code] = true;
   keys[e.code] = true;
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
@@ -60,9 +71,8 @@ if (touchMode){
 }
 
 window.addEventListener('blur', () => {
-  for (const code in keys) keys[code] = false;
-  virtualHolds.clear();
-  document.querySelectorAll('.touch-key.is-active').forEach(el => el.classList.remove('is-active'));
+  clearInputs();
+  if (scene==='fight' && fight?.phase==='play') setPaused(true);
 });
 
 // ---------- 音效 (WebAudio 合成) ----------
@@ -189,15 +199,24 @@ const DIFFS = [
 
 // ---------- 战斗场景 ----------
 const STAGES = [
-  {id:0, name:'落霞荒野', ambient:'ember'},
-  {id:1, name:'月夜天台', ambient:'neon'},
-  {id:2, name:'雪岭神社', ambient:'snow'},
-  {id:3, name:'熔岩洞窟', ambient:'lava'},
+  {id:0, name:'落霞荒野', ambient:'ember', platforms:[
+    {x:155, y:525, w:280, kind:'stone'}, {x:845, y:555, w:250, kind:'stone'},
+  ]},
+  {id:1, name:'月夜天台', ambient:'neon', platforms:[
+    {x:105, y:520, w:260, kind:'roof'}, {x:870, y:470, w:300, kind:'roof'},
+  ]},
+  {id:2, name:'雪岭神社', ambient:'snow', platforms:[
+    {x:475, y:500, w:330, kind:'shrine'}, {x:92, y:560, w:220, kind:'snow'},
+  ]},
+  {id:3, name:'熔岩洞窟', ambient:'lava', platforms:[
+    {x:125, y:510, w:275, kind:'basalt'}, {x:790, y:455, w:330, kind:'basalt'},
+  ]},
 ];
 let stage = STAGES[0];
 
 // ---------- 全局状态 ----------
 let scene = 'menu';           // menu | fight | matchEnd
+let paused = false;
 let menuSel = 0, diffSel = 1;
 let fight = null;
 let shake = 0, freeze = 0, koFlash = 0, slowmo = 0;
@@ -207,13 +226,60 @@ let screenFlash = 0, screenFlashC = '#ffffff';   // 全屏闪光
 let particles = [], floaters = [], projectiles = [], rings = [], embers = [], banners = [];
 let frame = 0;
 
+function clearInputs(){
+  for (const code in keys) keys[code] = false;
+  for (const code in pressed) pressed[code] = false;
+  virtualHolds.clear();
+  document.querySelectorAll('.touch-key.is-active').forEach(el => el.classList.remove('is-active'));
+}
+
+function syncGameUi(){
+  const canPause = scene==='fight';
+  pauseToggle.hidden = !canPause || paused;
+  pauseOverlay.hidden = !paused;
+  document.documentElement.classList.toggle('game-paused', paused);
+}
+
+function setPaused(next){
+  paused = scene==='fight' && !!next;
+  clearInputs();
+  syncGameUi();
+  if (paused) pauseResume.focus?.();
+}
+
+function resetFight(){
+  if (!fight) return;
+  const pChar = fight.p.ch, cChar = fight.c.ch, diff = fight.diff;
+  fight = makeFight(pChar, cChar, diff);
+  resetBattleEffects();
+  setPaused(false);
+}
+
+function returnToMenu(){
+  scene = 'menu';
+  fight = null;
+  resetBattleEffects();
+  setPaused(false);
+  syncGameUi();
+}
+
+function resetBattleEffects(){
+  projectiles=[]; particles=[]; floaters=[]; rings=[]; embers=[]; banners=[];
+  slowmo=0; zoomP=0; freeze=0; shake=0; superDark=0; screenFlash=0; koFlash=0;
+}
+
+pauseToggle.addEventListener('click', () => setPaused(true));
+pauseResume.addEventListener('click', () => setPaused(false));
+pauseRestart.addEventListener('click', resetFight);
+pauseSelect.addEventListener('click', returnToMenu);
+
 // ---------- 战斗者 ----------
 class Fighter {
   constructor(ch, x, isCPU){
     this.ch = ch; this.isCPU = isCPU;
     this.maxHp = ch.hp; this.hp = ch.hp;
     this.meter = 0;
-    this.x = x; this.y = GROUND; this.vx = 0; this.vy = 0;
+    this.x = x; this.y = GROUND; this.floorY = GROUND; this.vx = 0; this.vy = 0;
     this.face = 1;
     this.state = 'idle'; this.st = 0;      // state timer (frames)
     this.atk = null; this.hasHit = false;  // current attack data
@@ -234,7 +300,7 @@ class Fighter {
     this.rollDir = 1;                              // 受身翻滚方向
     this.iFrames = 0;                              // 受身后无敌帧(60=1秒)
   }
-  get airborne(){ return this.y < GROUND - 0.5; }
+  get airborne(){ return this.y < this.floorY - 0.5; }
   // 觉醒外观色(招式强化在各技能实现内分支)
   get col(){ return this.awakened ? this.ch.awk.color : this.ch.color; }
   get glo(){ return this.awakened ? this.ch.awk.glow : this.ch.glow; }
@@ -428,9 +494,9 @@ function spark(x,y,color,n){
     particles.push({type:'spark',x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,life:14+Math.random()*10,max:24,c:color,r:2+Math.random()*3});
   }
 }
-function dust(x,n){
+function dust(x,n,y=GROUND){
   for(let i=0;i<n;i++)
-    particles.push({type:'spark',x:x+(Math.random()*40-20), y:GROUND-2, vx:(Math.random()-0.5)*3, vy:-Math.random()*2,
+    particles.push({type:'spark',x:x+(Math.random()*40-20), y:y-2, vx:(Math.random()-0.5)*3, vy:-Math.random()*2,
                     life:12+Math.random()*8, max:20, c:'#8a7a6a', r:2+Math.random()*2});
 }
 function flame(x,y,c,n,spread=18){
@@ -478,7 +544,7 @@ function aiIntents(f, foe, diff){
   if (f.aiTimer > 0) return f.intents;
   f.aiTimer = diff.think + Math.floor(Math.random()*8);
   const it = {};
-  const dx = foe.x - f.x, dist = Math.abs(dx);
+  const dx = foe.x - f.x, dy = foe.y - f.y, dist = Math.abs(dx);
   const toward = dx > 0 ? 'right' : 'left';
   const away   = dx > 0 ? 'left' : 'right';
   const foeAttacking = ['attack','special','super'].includes(foe.state);
@@ -491,7 +557,11 @@ function aiIntents(f, foe, diff){
     return it;
   }
 
-  if (foe.state==='hit' && foe.airborne && dist < 170 && Math.random() < diff.react){
+  if (dy < -70 && Math.random() < 0.55 + diff.react*0.25){
+    // 对手在高台:向对方跳跃追击，避免 AI 长时间停在台下
+    it[toward] = true; it.jump = true;
+    if (dist < 150 && Math.random() < diff.react) it.atk = true;
+  } else if (foe.state==='hit' && foe.airborne && dist < 170 && Math.random() < diff.react){
     // 浮空追击
     it[toward] = true; it.atk = true;
     if (foe.y < GROUND-60 && Math.random()<0.7) it.jump = true;   // 地面起跳/空中二段跳
@@ -535,6 +605,21 @@ function aiIntents(f, foe, diff){
   return it;
 }
 
+function platformAtFloor(f){
+  if (f.floorY===GROUND) return null;
+  return stage.platforms.find(p => Math.abs(p.y-f.floorY)<0.5 && f.x>p.x+14 && f.x<p.x+p.w-14) || null;
+}
+
+function landingSurface(f, prevY, nextY){
+  if (f.vy<=0 || nextY<=prevY) return null;
+  let best = nextY>=GROUND && prevY<=GROUND ? GROUND : null;
+  for (const p of stage.platforms){
+    if (f.x<=p.x+14 || f.x>=p.x+p.w-14) continue;
+    if (prevY<=p.y && nextY>=p.y && (best===null || p.y<best)) best=p.y;
+  }
+  return best;
+}
+
 // ---------- 战斗者更新 ----------
 function updateFighter(f, foe, it){
   const ch = f.ch;
@@ -558,11 +643,18 @@ function updateFighter(f, foe, it){
   if (f.combo>0 && f.comboT>8 && ['idle','walk','block','dash','jump'].includes(foe.state)) f.combo = 0;
   if (f.comboT > 90) f.combo = 0;
 
+  // 走出高台边缘后开始下落；平台为单向地形，可以从下方跳上去
+  if (f.floorY<GROUND && !platformAtFloor(f)){
+    f.floorY = GROUND;
+    if (f.y>=GROUND) f.y=GROUND-1;
+  }
+
   // 朝向（仅可行动时调整）
   if (['idle','walk','block'].includes(f.state) && !f.airborne) f.face = foe.x >= f.x ? 1 : -1;
 
   // 物理
   f.x += f.vx;
+  const prevY = f.y;
   const prevVy = f.vy;
   if (f.airDashT > 0){       // 空中瞬移:无重力横移
     f.airDashT--;
@@ -571,34 +663,36 @@ function updateFighter(f, foe, it){
     streakLine(f.x - f.airDashDir*22, f.y-30-Math.random()*56, f.airDashDir>0?Math.PI:0, 9+Math.random()*4, f.glo);
     f.trail.unshift({x:f.x, y:f.y}); if (f.trail.length>5) f.trail.pop();
   } else if (f.airborne || f.vy < 0){ f.vy += 0.85; f.y += f.vy; }
-  if (f.y >= GROUND){
+  const landY = landingSurface(f, prevY, f.y);
+  if (landY!==null){
+    f.floorY = landY;
     // 落地反弹:受击/KO 高速下坠时弹起一次
     if ((f.state==='hit'||f.state==='ko') && prevVy > 10 && f.grdB < 1){
       f.grdB++;
-      f.y = GROUND - 1;
+      f.y = landY - 1;
       f.vy = -prevVy * 0.55;
       f.vx *= 0.8;
       if (f.state==='hit') f.stun = Math.max(f.stun, 26);
       sfx.bounce();
       shake = Math.max(shake, 6);
-      dust(f.x, 6); debris(f.x, GROUND, 4);
-      rings.push({x:f.x, y:GROUND-8, r:12, vr:6, life:12, c:'#ffffff'});
+      dust(f.x, 6, landY); debris(f.x, landY, 4);
+      rings.push({x:f.x, y:landY-8, r:12, vr:6, life:12, c:'#ffffff'});
       floaters.push({x:f.x, y:f.y-140, txt:'弹地!', c:'#ffcf7e', t:0});
     } else {
       // 受身/快速起身:受击落地(非KO)按左右方向翻滚,短无敌+快速恢复
       if (f.state==='hit' && !f.isBlockstun && prevVy > 3 && (it.left || it.right)){
         f.setState('roll');
         f.rollDir = it.left ? -1 : 1;
-        f.y = GROUND; f.vy = 0; f.stun = 0;
+        f.y = landY; f.vy = 0; f.stun = 0;
         f.iFrames = 60;                       // 受身成功:1秒无敌
         f.airJumps = 0; f.airDashT = 0;
         sfx.dash();
-        dust(f.x, 6);
-        rings.push({x:f.x, y:GROUND-10, r:10, vr:5, life:10, c:f.glo});
+        dust(f.x, 6, landY);
+        rings.push({x:f.x, y:landY-10, r:10, vr:5, life:10, c:f.glo});
         floaters.push({x:f.x, y:f.y-140, txt:'受身!无敌!', c:'#9ef5c0', t:0});
       } else {
-        f.y = GROUND;
-        if (f.vy > 0){ if (prevVy > 6) dust(f.x, 5); f.vy = 0; }
+        f.y = landY;
+        if (f.vy > 0){ if (prevVy > 6) dust(f.x, 5, landY); f.vy = 0; }
         f.airJumps = 0; f.airDashT = 0;
         if (f.state==='jump'){ f.atk=null; f.setState('idle'); }
       }
@@ -699,7 +793,7 @@ function updateFighter(f, foe, it){
     case 'jump': {
       // K 先按 J 后到:起跳前几帧仍可转觉醒
       if (!f.awakened && f.meter >= 100 && f.st <= 4 && f.bufAtk > 0 && fight.phase==='play'){
-        f.bufAtk = 0; f.vy = 0; f.y = GROUND;
+        f.bufAtk = 0; f.vy = 0; f.y = f.floorY;
         f.startAwaken(); break;
       }
       if (it.left)  f.x -= ch.speed*0.7;
@@ -770,7 +864,7 @@ function updateFighter(f, foe, it){
     case 'roll': {
       // 受身翻滚:横向位移,前 12 帧无敌,尾段可行动
       f.x += f.rollDir * ch.speed * 2.2 * (1 - f.st/20);
-      if (f.st % 2 === 0) dust(f.x, 1);
+      if (f.st % 2 === 0) dust(f.x, 1, f.floorY);
       if (f.st >= 20){ f.vx = 0; f.setState('idle'); }
       break;
     }
@@ -1264,6 +1358,7 @@ function updateFight(){
       if (F.p.wins>=2 || F.c.wins>=2){
         F.matchWinner = F.p.wins>=2 ? F.p : F.c;
         scene = 'matchEnd';
+        syncGameUi();
       } else {
         F.round++;
         const pw=F.p.wins, cw=F.c.wins;
@@ -1589,6 +1684,56 @@ function drawBg(){
       ctx.beginPath(); ctx.moveTo(cx, GROUND+6); ctx.lineTo(cx+40, GROUND+30); ctx.lineTo(cx+18, GROUND+56); ctx.stroke();
     }
   }
+  if (scene!=='menu') drawStagePlatforms(id);
+}
+
+function drawStagePlatforms(id){
+  for (const p of stage.platforms){
+    ctx.save();
+    if (p.kind==='stone'){
+      ctx.fillStyle='#2a1b24';
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+p.w,p.y);
+      ctx.lineTo(p.x+p.w-24,p.y+42); ctx.lineTo(p.x+20,p.y+54); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(255,174,112,.65)'; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+p.w,p.y); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(p.x+38,p.y+12); ctx.lineTo(p.x+78,p.y+32); ctx.lineTo(p.x+118,p.y+9); ctx.stroke();
+    } else if (p.kind==='roof'){
+      ctx.fillStyle='#12182a'; ctx.fillRect(p.x,p.y,p.w,34);
+      ctx.fillStyle='#202a44'; ctx.fillRect(p.x+15,p.y+34,p.w-30,GROUND-p.y-34);
+      ctx.strokeStyle='rgba(76,213,255,.78)'; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+p.w,p.y); ctx.stroke();
+      ctx.fillStyle='rgba(255,80,180,.42)';
+      for(let x=p.x+24;x<p.x+p.w-18;x+=52) ctx.fillRect(x,p.y+13,28,4);
+    } else if (p.kind==='shrine'){
+      ctx.fillStyle='#54252a'; ctx.fillRect(p.x,p.y,p.w,28);
+      ctx.fillStyle='#7a3833';
+      for(let x=p.x+24;x<p.x+p.w-18;x+=58) ctx.fillRect(x,p.y+28,15,GROUND-p.y-28);
+      ctx.fillStyle='#f0f5fb';
+      ctx.beginPath(); ctx.moveTo(p.x-5,p.y-8); ctx.lineTo(p.x+p.w+5,p.y-8);
+      ctx.lineTo(p.x+p.w,p.y+2); ctx.lineTo(p.x,p.y+2); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='#bd4b42'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(p.x,p.y+2); ctx.lineTo(p.x+p.w,p.y+2); ctx.stroke();
+    } else if (p.kind==='snow'){
+      ctx.fillStyle='#617188';
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+p.w,p.y);
+      ctx.lineTo(p.x+p.w-28,GROUND); ctx.lineTo(p.x+18,GROUND); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#edf4fb';
+      ctx.beginPath(); ctx.moveTo(p.x-4,p.y); ctx.quadraticCurveTo(p.x+p.w*.45,p.y-20,p.x+p.w+4,p.y);
+      ctx.lineTo(p.x+p.w,p.y+9); ctx.lineTo(p.x,p.y+9); ctx.closePath(); ctx.fill();
+    } else { // basalt
+      ctx.fillStyle='#25110d';
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+p.w,p.y);
+      ctx.lineTo(p.x+p.w-30,GROUND); ctx.lineTo(p.x+22,GROUND); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(255,126,38,.9)'; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+p.w,p.y); ctx.stroke();
+      ctx.strokeStyle='rgba(255,92,24,.5)'; ctx.lineWidth=2;
+      for(let x=p.x+48;x<p.x+p.w-30;x+=86){
+        ctx.beginPath(); ctx.moveTo(x,p.y+10); ctx.lineTo(x+18,p.y+32); ctx.lineTo(x+8,p.y+58); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
 }
 
 // ---------- 火柴人 ----------
@@ -1627,7 +1772,7 @@ function drawFighter(f){
   // 影子
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath();
-  ctx.ellipse(x, GROUND+6, 34*Math.max(0.4,1-(GROUND-y)/300), 7, 0, 0, Math.PI*2);
+  ctx.ellipse(x, f.floorY+6, 34*Math.max(0.4,1-(f.floorY-y)/300), 7, 0, 0, Math.PI*2);
   ctx.fill();
 
   // 满气光环 / 觉醒常驻光环
@@ -2350,15 +2495,21 @@ function updateMenu(){
     const cpu = CHARS[Math.floor(Math.random()*CHARS.length)];
     stage = STAGES[Math.floor(Math.random()*STAGES.length)];
     fight = makeFight(CHARS[menuSel], cpu, DIFFS[diffSel]);
-    projectiles=[]; particles=[]; floaters=[]; rings=[]; embers=[];
-    slowmo=0; zoomP=0;
+    resetBattleEffects();
     scene = 'fight';
+    paused = false;
+    syncGameUi();
   }
 }
 
 // ---------- 主循环 ----------
 function loop(){
   frame++;
+  if (paused){
+    draw();
+    requestAnimationFrame(loop);
+    return;
+  }
   if (freeze > 0){
     freeze--;   // 打击定格:跳过更新,但保留 pressed 输入,解冻帧统一消费
   } else if (slowmo > 0 && frame%2===0){
@@ -2368,7 +2519,7 @@ function loop(){
     if (scene==='menu') updateMenu();
     else if (scene==='fight') updateFight();
     else if (scene==='matchEnd'){
-      if (pressed['KeyJ'] || pressed['Enter']){ sfx.confirm(); scene='menu'; }
+      if (pressed['KeyJ'] || pressed['Enter']){ sfx.confirm(); returnToMenu(); }
     }
     // 特效更新
     for (const p of particles){
@@ -2422,4 +2573,5 @@ function loop(){
   draw();
   requestAnimationFrame(loop);
 }
+syncGameUi();
 loop();
