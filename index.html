@@ -50,6 +50,70 @@
       max(10px,env(safe-area-inset-left));
     pointer-events:none;
   }
+  .pause-button{
+    position:absolute;
+    top:max(clamp(58px,14vh,104px),env(safe-area-inset-top));
+    right:max(10px,env(safe-area-inset-right));
+    z-index:3;
+    min-width:48px;
+    min-height:44px;
+    padding:0 14px;
+    border:1px solid rgba(255,233,200,.72);
+    border-radius:10px;
+    background:rgba(8,8,14,.76);
+    color:#ffe9c8;
+    font:700 15px/1 "Microsoft YaHei",system-ui,sans-serif;
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  .pause-button:hover,.pause-button:focus-visible{
+    background:#2b1b20;
+    outline:2px solid #ffb05e;
+    outline-offset:2px;
+  }
+  .pause-overlay{
+    position:absolute;
+    inset:0;
+    z-index:4;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    background:rgba(5,5,10,.78);
+  }
+  .pause-overlay[hidden],.pause-button[hidden]{display:none}
+  .pause-panel{
+    width:min(390px,88%);
+    padding:30px;
+    border:2px solid rgba(255,176,94,.68);
+    border-radius:14px;
+    background:#141018;
+    color:#fff;
+    text-align:center;
+  }
+  .pause-panel h2{margin:0 0 8px;color:#ffe9c8;font:800 34px/1.2 "Microsoft YaHei",system-ui,sans-serif}
+  .pause-panel p{margin:0 0 22px;color:#d8cfca;font:14px/1.5 "Microsoft YaHei",system-ui,sans-serif}
+  .touch-pause-hint{display:none}
+  html.mobile-mode .desktop-pause-hint{display:none}
+  html.mobile-mode .touch-pause-hint{display:inline}
+  .pause-actions{display:flex;flex-direction:column;gap:10px}
+  .pause-actions button{
+    min-height:46px;
+    border:1px solid rgba(255,255,255,.28);
+    border-radius:9px;
+    background:#24202a;
+    color:#fff;
+    font:700 16px/1 "Microsoft YaHei",system-ui,sans-serif;
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  .pause-actions button:first-child{border-color:#ff9c4a;background:#7b351d}
+  .pause-actions button:hover,.pause-actions button:focus-visible{
+    background:#45333b;
+    outline:2px solid #ffb05e;
+    outline-offset:2px;
+  }
+  html.game-paused .touch-controls{display:none!important}
   .control-pad{
     display:grid;
     grid-template-columns:repeat(3,var(--control-size));
@@ -118,6 +182,7 @@
 <body>
 <main id="game-shell" aria-label="火柴人格斗游戏">
   <canvas id="c" width="1280" height="720" aria-label="火柴人格斗画面"></canvas>
+  <button id="pause-toggle" class="pause-button" type="button" aria-label="暂停游戏" hidden>暂停</button>
   <div class="touch-controls" aria-label="手机触控键位">
     <div class="control-pad control-pad--move" aria-label="移动和防御">
       <button class="touch-key" data-code="KeyW" aria-label="向上和招式派生">W<span>上</span></button>
@@ -134,11 +199,22 @@
       <button class="touch-key" data-code="KeyJ" aria-label="普通攻击和确认">J<span>攻击</span></button>
     </div>
   </div>
+  <section id="pause-overlay" class="pause-overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
+    <div class="pause-panel">
+      <h2 id="pause-title">战斗暂停</h2>
+      <p><span class="desktop-pause-hint">按 Esc 或 P 可以继续战斗</span><span class="touch-pause-hint">点击“继续战斗”即可返回</span></p>
+      <div class="pause-actions">
+        <button id="pause-resume" type="button">继续战斗</button>
+        <button id="pause-restart" type="button">重新开始本场</button>
+        <button id="pause-select" type="button">返回选人</button>
+      </div>
+    </div>
+  </section>
 </main>
 <div class="rotate-hint" role="status">
   请将手机横过来
   <span>横屏后会显示虚拟键位</span>
 </div>
-<script src="game.js"></script>
+<script src="game.js?v=5"></script>
 </body>
 </html>
