@@ -1,7 +1,7 @@
 'use strict';
-// ============ 火柴人格斗 Stick Fighter v4 ============
+// ============ 火柴人格斗 Stick Fighter v5.1 ============
 // 布局(死神vs火影式): A/D移动 W上 S防御/下 K跳 J普攻(三段连) I必杀(耗气) O大招 L冲刺
-// v4: 手机触控 / 暂停与重开 / 四地图单向平台 / 觉醒与反弹系统
+// v5: 受击替身 / 手机触控 / 暂停与重开 / 四地图单向平台 / 觉醒与反弹系统
 const cvs = document.getElementById('c');
 const ctx = cvs.getContext('2d');
 const pauseToggle = document.getElementById('pause-toggle');
@@ -9,8 +9,23 @@ const pauseOverlay = document.getElementById('pause-overlay');
 const pauseResume = document.getElementById('pause-resume');
 const pauseRestart = document.getElementById('pause-restart');
 const pauseSelect = document.getElementById('pause-select');
+const soundToggle = document.getElementById('sound-toggle');
+const effectsToggle = document.getElementById('effects-toggle');
+const pauseMoves = document.getElementById('pause-moves');
 const W = 1280, H = 720, GROUND = 640;
 const SP_COST = 30;
+const SUBSTITUTE_COOLDOWN = 540;                  // 免费替身，9 秒冷却
+const SUBSTITUTE_IFRAMES = 24;                    // 替身后 0.4 秒无敌
+
+const preferences = {
+  sound: true,
+  reducedFx: matchMedia('(prefers-reduced-motion: reduce)').matches,
+};
+try{
+  const saved=JSON.parse(localStorage.getItem('stick-fighter-settings')||'null');
+  if (saved && typeof saved.sound==='boolean') preferences.sound=saved.sound;
+  if (saved && typeof saved.reducedFx==='boolean') preferences.reducedFx=saved.reducedFx;
+}catch(e){}
 
 // ---------- 输入 ----------
 const keys = {}, pressed = {};
@@ -79,6 +94,7 @@ window.addEventListener('blur', () => {
 let AC = null;
 function ac(){ if(!AC) AC = new (window.AudioContext||window.webkitAudioContext)(); return AC; }
 function beep(freq, dur, type='square', vol=0.12, slide=0){
+  if (!preferences.sound) return;
   try{
     const a = ac(), o = a.createOscillator(), g = a.createGain();
     o.type = type; o.frequency.value = freq;
@@ -215,16 +231,20 @@ const STAGES = [
 let stage = STAGES[0];
 
 // ---------- 全局状态 ----------
-let scene = 'menu';           // menu | fight | matchEnd
+let scene = 'menu';           // menu | stageSelect | fight | matchEnd
 let paused = false;
-let menuSel = 0, diffSel = 1;
+let menuSel = 0, diffSel = 1, stageSel = 0;
 let fight = null;
 let shake = 0, freeze = 0, koFlash = 0, slowmo = 0;
 let zoomP = 0, zoomX = W/2, zoomY = H/2;        // 大招镜头推近
 let superDark = 0;                               // 大招暗幕
 let screenFlash = 0, screenFlashC = '#ffffff';   // 全屏闪光
-let particles = [], floaters = [], projectiles = [], rings = [], embers = [], banners = [];
+let particles = [], floaters = [], projectiles = [], rings = [], embers = [], banners = [], decoys = [];
 let frame = 0;
+let tutorialCompleted=false;
+let tutorial={active:false,step:0,seenJumpOrBlock:false};
+const substituteTouch = document.querySelector?.('.touch-key[data-code="KeyH"]') || null;
+const substituteTouchLabel = substituteTouch?.querySelector('span') || null;
 
 function clearInputs(){
   for (const code in keys) keys[code] = false;
@@ -238,6 +258,37 @@ function syncGameUi(){
   pauseToggle.hidden = !canPause || paused;
   pauseOverlay.hidden = !paused;
   document.documentElement.classList.toggle('game-paused', paused);
+  soundToggle.textContent=`音效：${preferences.sound?'开':'关'}`;
+  effectsToggle.textContent=`闪光震屏：${preferences.reducedFx?'减弱':'标准'}`;
+  if (fight){
+    const ch=fight.p.ch;
+    pauseMoves.innerHTML=`<strong>${ch.name} 招式</strong><br>U：${ch.uNames.n} / ↑${ch.uNames.up} / ↓${ch.uNames.down}<br>I：${ch.spNames.n} / ↑${ch.spNames.up} / ↓${ch.spNames.down}`;
+  } else pauseMoves.textContent='进入战斗后可在这里查看当前角色招式。';
+  if (!canPause && substituteTouch){
+    substituteTouch.classList.remove('is-ready','is-cooling');
+    if (substituteTouchLabel) substituteTouchLabel.textContent='替身';
+    substituteTouch.setAttribute('aria-label','受击时替身到敌人身后');
+  }
+  syncTouchLabels();
+}
+
+function syncTouchLabels(){
+  if (!touchMode) return;
+  const combat={KeyW:'上',KeyA:'左',KeyS:'防',KeyD:'右',KeyU:'技',KeyI:'必杀',KeyO:'大招',KeyH:'替身',KeyL:'闪',KeyK:'跳',KeyJ:'攻击'};
+  const menu={KeyA:'角色−',KeyD:'角色+',KeyJ:'下一步'};
+  const select={KeyA:'地图−',KeyD:'地图+',KeyW:'难度−',KeyS:'难度+',KeyJ:'开战',KeyK:'返回'};
+  const activeMap=scene==='menu'?menu:(scene==='stageSelect'?select:combat);
+  document.querySelectorAll('.touch-key').forEach(button=>{
+    const code=button.dataset.code, label=activeMap[code];
+    const span=button.querySelector?.('span');
+    if (span && !(code==='KeyH' && scene==='fight')) span.textContent=label||'—';
+    button.classList.toggle('is-muted',!label);
+  });
+}
+
+function savePreferences(){
+  try{ localStorage.setItem('stick-fighter-settings',JSON.stringify(preferences)); }catch(e){}
+  syncGameUi();
 }
 
 function setPaused(next){
@@ -264,14 +315,19 @@ function returnToMenu(){
 }
 
 function resetBattleEffects(){
-  projectiles=[]; particles=[]; floaters=[]; rings=[]; embers=[]; banners=[];
+  projectiles=[]; particles=[]; floaters=[]; rings=[]; embers=[]; banners=[]; decoys=[];
   slowmo=0; zoomP=0; freeze=0; shake=0; superDark=0; screenFlash=0; koFlash=0;
 }
 
 pauseToggle.addEventListener('click', () => setPaused(true));
 pauseResume.addEventListener('click', () => setPaused(false));
 pauseRestart.addEventListener('click', resetFight);
+function toggleSound(){preferences.sound=!preferences.sound;savePreferences();}
+function toggleEffects(){preferences.reducedFx=!preferences.reducedFx;savePreferences();}
+
 pauseSelect.addEventListener('click', returnToMenu);
+soundToggle.addEventListener('click',toggleSound);
+effectsToggle.addEventListener('click',toggleEffects);
 
 // ---------- 战斗者 ----------
 class Fighter {
@@ -299,6 +355,7 @@ class Fighter {
     this.wallB = 0; this.grdB = 0;                 // 本次受击串已用的弹墙/地弹次数
     this.rollDir = 1;                              // 受身翻滚方向
     this.iFrames = 0;                              // 受身后无敌帧(60=1秒)
+    this.subCd = 0;                                // 替身冷却
   }
   get airborne(){ return this.y < this.floorY - 0.5; }
   // 觉醒外观色(招式强化在各技能实现内分支)
@@ -535,7 +592,39 @@ function playerIntents(f){
   it.u     = pressed['KeyU'];
   it.sup   = pressed['KeyO'];
   it.dash  = pressed['KeyL'];
+  it.sub   = pressed['KeyH'];
   return it;
+}
+
+function updateTutorial(it){
+  if (!tutorial.active || fight.phase!=='play') return;
+  if (tutorial.step===0 && (it.left||it.right)) tutorial.step=1;
+  else if (tutorial.step===1 && it.atk) tutorial.step=2;
+  else if (tutorial.step===2 && (it.jump||it.down)) tutorial.step=3;
+  else if (tutorial.step===3 && it.u){
+    tutorial.active=false;
+    tutorialCompleted=true;
+    floaters.push({x:fight.p.x,y:fight.p.y-145,txt:'基础招式已掌握!',c:'#ffe9a8',t:0});
+  }
+}
+
+function tutorialTip(){
+  if (!fight || fight.phase!=='play') return null;
+  const p=fight.p;
+  if (p.state==='hit' && p.subCd<=0) return {title:'被连击时',text:`按 H${touchMode?'（紫色替身键）':''} 脱身到敌人背后`};
+  if (p.state==='hit' && p.airborne && p.vy>1) return {title:'即将落地',text:'按 A 或 D 受身，快速起身并获得短暂无敌'};
+  if (tutorial.active){
+    const steps=[
+      {title:'第一步 · 走位',text:'按 A / D 靠近或拉开距离'},
+      {title:'第二步 · 进攻',text:'按 J 普通攻击，连续按可形成连段'},
+      {title:'第三步 · 防守',text:'按 S 防御，或按 K 跳上平台改变位置'},
+      {title:'第四步 · 角色技',text:'按 U 使用角色技能，上/下方向可以派生'},
+    ];
+    return steps[tutorial.step];
+  }
+  if (!p.awakened && p.meter>=100) return {title:'气已满',text:'按 O 释放大招，或同时按 J + K 觉醒'};
+  if (p.meter>=SP_COST && p.meter<100) return {title:'气槽可用',text:'按 I 使用必杀；配合 W / S 可改变招式'};
+  return null;
 }
 
 // ---------- AI ----------
@@ -620,6 +709,47 @@ function landingSurface(f, prevY, nextY){
   return best;
 }
 
+function trySubstitute(f, foe, it){
+  if (!it.sub || f.state!=='hit' || f.hp<=0 || fight.phase!=='play') return false;
+  if (f.subCd>0){
+    if (!f.isCPU && f.msgCd<=0){
+      f.msgCd=40;
+      floaters.push({x:f.x,y:f.y-132,txt:`替身冷却 ${Math.ceil(f.subCd/60)}秒`,c:'#b9a7ce',t:0});
+    }
+    return false;
+  }
+
+  const oldX=f.x, oldY=f.y, oldFloor=f.floorY;
+  const foePlatform=platformAtFloor(foe);
+  let targetX=foe.x-foe.face*92;
+  let targetFloor=GROUND;
+  if (foePlatform){
+    targetFloor=foePlatform.y;
+    targetX=Math.max(foePlatform.x+28,Math.min(foePlatform.x+foePlatform.w-28,targetX));
+  }
+  targetX=Math.max(50,Math.min(W-50,targetX));
+
+  decoys.push({x:oldX,y:oldFloor,t:0,life:34,c:f.col});
+  for(let i=0;i<14;i++) particles.push({type:'smoke',x:oldX+(Math.random()*36-18),y:oldY-50-Math.random()*55,
+    vx:(Math.random()-.5)*3.2,vy:-.8-Math.random()*2,life:22+Math.random()*16,max:38,c:'#e8edf5',r:6+Math.random()*8});
+  for(let i=0;i<8;i++) particles.push({type:'smoke',x:targetX+(Math.random()*28-14),y:targetFloor-30-Math.random()*45,
+    vx:(Math.random()-.5)*2.4,vy:-.6-Math.random()*1.5,life:18+Math.random()*12,max:30,c:f.glo,r:4+Math.random()*6});
+
+  f.x=targetX; f.y=targetFloor; f.floorY=targetFloor;
+  f.vx=0; f.vy=0; f.stun=0; f.isBlockstun=false;
+  f.atk=null; f.hasHit=false; f.airDashT=0; f.airJumps=0;
+  f.bufAtk=0; f.bufSp=0; f.bufU=0; f.bufJmp=0;
+  f.iFrames=Math.max(f.iFrames,SUBSTITUTE_IFRAMES);
+  f.subCd=SUBSTITUTE_COOLDOWN;
+  f.face=foe.x>=f.x?1:-1;
+  f.setState('idle');
+  sfx.dash(); beep(780,.11,'triangle',.09,-320);
+  rings.push({x:oldX,y:oldFloor-45,r:12,vr:7,life:14,c:'#ffffff'});
+  rings.push({x:f.x,y:f.y-50,r:8,vr:5,life:12,c:f.glo});
+  floaters.push({x:f.x,y:f.y-126,txt:'替身!',c:'#d8bdff',t:0});
+  return true;
+}
+
 // ---------- 战斗者更新 ----------
 function updateFighter(f, foe, it){
   const ch = f.ch;
@@ -627,6 +757,7 @@ function updateFighter(f, foe, it){
   if (f.spCd > 0) f.spCd--;
   if (f.uCd > 0) f.uCd--;
   if (f.dashCd > 0) f.dashCd--;
+  if (f.subCd > 0) f.subCd--;
   if (f.iFrames > 0) f.iFrames--;
   if (f.flashT > 0) f.flashT--;
   if (f.msgCd > 0) f.msgCd--;
@@ -637,6 +768,9 @@ function updateFighter(f, foe, it){
   if (it.u)   f.bufU   = 7; else if (f.bufU>0)   f.bufU--;
   if (it.jump) f.bufJmp = 5; else if (f.bufJmp>0) f.bufJmp--;
   if (f.awakened) f.awkT++;
+
+  // 替身是受击硬直中的紧急脱身，优先于本帧物理和受击状态更新
+  if (trySubstitute(f,foe,it)) return;
 
   // 连击计时/重置
   f.comboT++;
@@ -1377,6 +1511,7 @@ function updateFight(){
   if (F.phase==='play' || F.phase==='ko'){
     const pIt = (F.phase==='play' && !F.p.isCPU) ? playerIntents(F.p) : {};
     const cIt = (F.phase==='play') ? aiIntents(F.c, F.p, F.diff) : {};
+    updateTutorial(pIt);
     updateFighter(F.p, F.c, pIt);
     updateFighter(F.c, F.p, cIt);
     pushApart(F.p, F.c);
@@ -1422,6 +1557,7 @@ function updateFight(){
 // ================== 渲染 ==================
 function draw(){
   ctx.save();
+  if (preferences.reducedFx) shake=0;
   if (shake>0){
     ctx.translate((Math.random()-0.5)*shake*2, (Math.random()-0.5)*shake*2);
     shake *= 0.88; if (shake<0.5) shake=0;
@@ -1433,6 +1569,7 @@ function draw(){
   } else zoomP = 0;
   drawBg();
   if (scene==='menu'){ drawMenu(); ctx.restore(); return; }
+  if (scene==='stageSelect'){ drawStageSelect(); ctx.restore(); return; }
   // 大招暗幕 + 聚焦线
   if (superDark>0){
     const a = Math.min(1, superDark/16);
@@ -1454,17 +1591,35 @@ function draw(){
   drawArena();
   ctx.restore();
   drawHud();
+  drawTutorial();
   drawBanners();
   if (screenFlash>0.02){
-    ctx.fillStyle = hexA(screenFlashC, Math.min(0.6, screenFlash));
+    const flashAlpha=preferences.reducedFx?Math.min(0.12,screenFlash*0.24):Math.min(0.6,screenFlash);
+    ctx.fillStyle = hexA(screenFlashC, flashAlpha);
     ctx.fillRect(0,0,W,H);
     screenFlash *= 0.90;
   } else screenFlash = 0;
   if (koFlash>0){
-    ctx.fillStyle = `rgba(255,240,220,${koFlash*0.45})`;
+    const koAlpha=preferences.reducedFx?koFlash*0.12:koFlash*0.45;
+    ctx.fillStyle = `rgba(255,240,220,${koAlpha})`;
     ctx.fillRect(0,0,W,H);
     koFlash -= 0.06; if (koFlash<0) koFlash=0;
   }
+}
+
+function drawTutorial(){
+  const tip=tutorialTip();
+  if (!tip) return;
+  const w=touchMode?590:560, h=64, x=(W-w)/2, y=touchMode?438:548;
+  ctx.save();
+  ctx.fillStyle='rgba(8,8,14,.86)'; roundRect(x,y,w,h,10); ctx.fill();
+  ctx.strokeStyle='rgba(255,190,112,.78)'; ctx.lineWidth=2; roundRect(x,y,w,h,10); ctx.stroke();
+  ctx.textAlign='left';
+  ctx.font='bold 17px "Microsoft YaHei",sans-serif'; ctx.fillStyle='#ffbf73';
+  ctx.fillText(tip.title,x+18,y+25);
+  ctx.font='15px "Microsoft YaHei",sans-serif'; ctx.fillStyle='#fff4e7';
+  ctx.fillText(tip.text,x+18,y+49);
+  ctx.restore();
 }
 
 function drawBanners(){
@@ -2114,6 +2269,19 @@ function hexA(hex, a){
 // ---------- 场景绘制 ----------
 function drawArena(){
   const F = fight;
+  // 替身留下的木桩短暂显示在原位置，帮助玩家读懂位置交换
+  for (const d of decoys){
+    const a=Math.max(0,d.life/34);
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.translate(d.x,d.y);
+    ctx.fillStyle='#8d5b32'; ctx.fillRect(-12,-72,24,66);
+    ctx.fillStyle='#c99052'; ctx.fillRect(-8,-68,7,58);
+    ctx.strokeStyle=d.c; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-18,-52); ctx.lineTo(18,-52); ctx.stroke();
+    ctx.fillStyle='#6b3d25';
+    ctx.beginPath(); ctx.ellipse(0,-72,14,6,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
   // 弹道
   for (const pr of projectiles){
     const dir = Math.sign(pr.vx);
@@ -2203,6 +2371,10 @@ function drawArena(){
       ctx.globalAlpha = Math.min(1, a*1.5);
       ctx.fillStyle = p.c;
       ctx.fillRect(p.x-p.r, p.y-p.r, p.r*2, p.r*2);
+    } else if (p.type==='smoke'){
+      ctx.globalAlpha=a*0.56;
+      ctx.fillStyle=p.c;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(1+(1-a)*.7),0,Math.PI*2); ctx.fill();
     } else { // spark / flame
       ctx.globalAlpha = p.type==='flame' ? a*0.8 : a;
       ctx.fillStyle = p.c;
@@ -2339,6 +2511,16 @@ function drawHud(){
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
     ctx.textAlign = 'center';
     ctx.fillText('U', ux+6, y0+bh+17);
+    // 玩家替身冷却：紫色为可用，灰色逐步恢复
+    if (!f.isCPU){
+      const sx=ux+24, sw=76;
+      ctx.fillStyle='rgba(0,0,0,.58)'; ctx.fillRect(sx-2,y0+bh+6,sw+4,16);
+      const ready=f.subCd<=0;
+      const fill=ready?1:1-f.subCd/SUBSTITUTE_COOLDOWN;
+      ctx.fillStyle=ready?'#b98aff':'#655879'; ctx.fillRect(sx,y0+bh+8,sw*fill,12);
+      ctx.font='bold 10px "Microsoft YaHei",sans-serif'; ctx.textAlign='center'; ctx.fillStyle='#fff';
+      ctx.fillText(ready?'H 替身':`H ${Math.ceil(f.subCd/60)}秒`,sx+sw/2,y0+bh+17);
+    }
     // 名字 & 胜场
     ctx.font = 'bold 20px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = f.col;
@@ -2365,10 +2547,52 @@ function drawHud(){
   ctx.fillStyle = '#fff';
   const sec = Math.max(0, Math.ceil(F.time/60));
   ctx.fillText(sec, W/2, 72);
-  // 操作提示
-  ctx.font = '15px "Microsoft YaHei", sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText('A/D移动 K跳 S防御(瞬防=完美格挡) J连击 U技 I必杀 O大招 满气J+K觉醒 L瞬移 被击飞落地按A/D受身', W/2, H-14);
+  if (substituteTouch){
+    const ready=F.p.subCd<=0;
+    const usable=ready && F.p.state==='hit' && F.phase==='play';
+    substituteTouch.classList.toggle('is-ready',usable);
+    substituteTouch.classList.toggle('is-cooling',!ready);
+    if (substituteTouchLabel) substituteTouchLabel.textContent=ready?'替身':`${Math.ceil(F.p.subCd/60)}秒`;
+    substituteTouch.setAttribute('aria-label',ready?'受击时替身到敌人身后':`替身冷却 ${Math.ceil(F.p.subCd/60)}秒`);
+  }
+  // 桌面操作提示使用稳定深色底板；手机由屏幕按键承载，不再重复遮挡
+  if (!touchMode){
+    ctx.fillStyle='rgba(6,6,10,.78)'; roundRect(142,H-42,W-284,34,8); ctx.fill();
+    ctx.font = '15px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = '#f2e8df';
+    ctx.fillText('A/D移动  K跳  S防御  J连击  U技  I必杀  O大招  L瞬移  H受击替身  落地A/D受身', W/2, H-19);
+  }
+}
+
+// ---------- 地图与难度选择 ----------
+function drawStageSelect(){
+  const selected=STAGES[stageSel];
+  ctx.fillStyle='rgba(5,5,12,.30)'; ctx.fillRect(0,0,W,H);
+  const top=32;
+  ctx.fillStyle='rgba(8,8,14,.82)'; ctx.fillRect(0,0,W,148);
+  ctx.textAlign='center';
+  ctx.font='bold 42px "Microsoft YaHei",sans-serif'; ctx.fillStyle='#ffe9c8';
+  ctx.fillText('选择战场',W/2,top+48);
+  ctx.font='18px "Microsoft YaHei",sans-serif'; ctx.fillStyle='rgba(255,255,255,.74)';
+  ctx.fillText(`${CHARS[menuSel].name} · ${DIFFS[diffSel].name}电脑`,W/2,top+84);
+
+  ctx.fillStyle='rgba(7,7,12,.82)'; roundRect(360,472,560,156,14); ctx.fill();
+  ctx.strokeStyle='rgba(255,185,104,.74)'; ctx.lineWidth=2; roundRect(360,472,560,156,14); ctx.stroke();
+  ctx.font='bold 38px "Microsoft YaHei",sans-serif'; ctx.fillStyle='#ffb05e';
+  ctx.fillText(`‹  ${selected.name}  ›`,W/2,520);
+  ctx.font='15px "Microsoft YaHei",sans-serif'; ctx.fillStyle='rgba(255,255,255,.72)';
+  ctx.fillText(`${selected.platforms.length} 处平台 · 只改变走位，不造成伤害`,W/2,552);
+
+  const startX=W/2-(STAGES.length-1)*82/2;
+  STAGES.forEach((st,i)=>{
+    const x=startX+i*82, active=i===stageSel;
+    ctx.beginPath(); ctx.arc(x,580,active?7:4,0,Math.PI*2);
+    ctx.fillStyle=active?'#ffb05e':'rgba(255,255,255,.35)'; ctx.fill();
+  });
+  ctx.font='bold 18px "Microsoft YaHei",sans-serif'; ctx.fillStyle=DIFFS[diffSel].color;
+  ctx.fillText(`难度：${DIFFS[diffSel].name}`,W/2,611);
+  ctx.font='16px "Microsoft YaHei",sans-serif'; ctx.fillStyle='rgba(255,255,255,.78)';
+  ctx.fillText('A / D 选择地图    W / S 调整难度    J 确认开战    K 返回选人',W/2,674);
 }
 
 // ---------- 菜单 ----------
@@ -2386,7 +2610,7 @@ function drawMenu(){
 
   // 角色卡(5 张)
   const n = CHARS.length;
-  const cw = 230, chh = 300, gap = 16;
+  const cw = 230, chh = 278, gap = 16;
   const total = cw*n+gap*(n-1), x0 = (W-total)/2;
   for (let i=0;i<n;i++){
     const ch = CHARS[i], x = x0 + i*(cw+gap), y = 226;
@@ -2411,33 +2635,24 @@ function drawMenu(){
     ctx.font = '17px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
     ctx.fillText(ch.style, x+cw/2, y+68);
-    ctx.font = '11px "Microsoft YaHei", sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText(`HP ${ch.hp}  U:${ch.uNames.n}/↑${ch.uNames.up}/↓${ch.uNames.down}`, x+cw/2, y+220);
-    ctx.fillText(`I:${ch.spNames.n}/↑${ch.spNames.up}/↓${ch.spNames.down}`, x+cw/2, y+242);
-    ctx.fillStyle = 'rgba(255,230,150,0.6)';
-    ctx.fillText(`O:${ch.supName}  J+K:${ch.awk.name}`, x+cw/2, y+266);
+    ctx.font = '13px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.fillText(`HP ${ch.hp} · 招牌：${ch.spNames.n}`, x+cw/2, y+226);
+    ctx.fillStyle = 'rgba(255,230,150,0.82)';
+    ctx.fillText(`觉醒：${ch.awk.name}`, x+cw/2, y+252);
   }
   if (menuSel>=0){
     ctx.textAlign='center';
     ctx.font = '19px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText(CHARS[menuSel].desc, W/2, 574);
+    ctx.fillText(CHARS[menuSel].desc, W/2, 554);
   }
-
-  // 难度
-  ctx.font = 'bold 26px "Microsoft YaHei", sans-serif';
-  ctx.fillStyle = '#fff';
-  ctx.fillText('难度：', W/2-160, 630);
-  DIFFS.forEach((df,i)=>{
-    ctx.fillStyle = i===diffSel ? df.color : 'rgba(255,255,255,0.3)';
-    ctx.font = (i===diffSel?'bold 30px':'22px')+' "Microsoft YaHei", sans-serif';
-    ctx.fillText(df.name, W/2-40+i*120, 630);
-  });
-
-  ctx.font = '18px "Microsoft YaHei", sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.fillText('A/D 选角色    W/S 选难度    J 或 回车 开始       战斗: J连击 I必杀 O大招 满气J+K觉醒变身', W/2, 685);
+  ctx.font = 'bold 22px "Microsoft YaHei", sans-serif';
+  ctx.fillStyle = '#ffe9c8';
+  ctx.fillText('A / D 选角色    J 或回车进入地图选择', W/2, 626);
+  ctx.font = '14px "Microsoft YaHei", sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,.62)';
+  ctx.fillText('v5.1 · 仅在本机保存游戏设置 · 不上传或收集玩家数据',W/2,684);
 }
 
 function drawMiniStick(ch, active){
@@ -2488,18 +2703,33 @@ function updateMenu(){
   const n = CHARS.length;
   if (pressed['KeyA'] || pressed['ArrowLeft']) { menuSel=(menuSel+n-1)%n; sfx.select(); }
   if (pressed['KeyD'] || pressed['ArrowRight']){ menuSel=(menuSel+1)%n; sfx.select(); }
-  if (pressed['KeyW'] || pressed['ArrowUp'])  { diffSel=(diffSel+2)%3; sfx.select(); }
-  if (pressed['KeyS'] || pressed['ArrowDown']){ diffSel=(diffSel+1)%3; sfx.select(); }
   if (pressed['KeyJ'] || pressed['Enter']){
     sfx.confirm();
-    const cpu = CHARS[Math.floor(Math.random()*CHARS.length)];
-    stage = STAGES[Math.floor(Math.random()*STAGES.length)];
-    fight = makeFight(CHARS[menuSel], cpu, DIFFS[diffSel]);
-    resetBattleEffects();
-    scene = 'fight';
-    paused = false;
+    stage=STAGES[stageSel];
+    scene='stageSelect';
     syncGameUi();
   }
+}
+
+function startSelectedFight(){
+  let cpuIndex=Math.floor(Math.random()*CHARS.length);
+  if (cpuIndex===menuSel) cpuIndex=(cpuIndex+1)%CHARS.length;
+  stage=STAGES[stageSel];
+  fight=makeFight(CHARS[menuSel],CHARS[cpuIndex],DIFFS[diffSel]);
+  resetBattleEffects();
+  tutorial={active:!tutorialCompleted,step:0,seenJumpOrBlock:false};
+  scene='fight'; paused=false;
+  syncGameUi();
+}
+
+function updateStageSelect(){
+  const n=STAGES.length;
+  if (pressed['KeyA']||pressed['ArrowLeft']){stageSel=(stageSel+n-1)%n;stage=STAGES[stageSel];sfx.select();resetBattleEffects();}
+  if (pressed['KeyD']||pressed['ArrowRight']){stageSel=(stageSel+1)%n;stage=STAGES[stageSel];sfx.select();resetBattleEffects();}
+  if (pressed['KeyW']||pressed['ArrowUp']){diffSel=(diffSel+2)%3;sfx.select();}
+  if (pressed['KeyS']||pressed['ArrowDown']){diffSel=(diffSel+1)%3;sfx.select();}
+  if (pressed['KeyK']||pressed['Escape']){scene='menu';sfx.select();syncGameUi();return;}
+  if (pressed['KeyJ']||pressed['Enter']){sfx.confirm();startSelectedFight();}
 }
 
 // ---------- 主循环 ----------
@@ -2517,6 +2747,7 @@ function loop(){
   } else {
     if (slowmo > 0) slowmo--;
     if (scene==='menu') updateMenu();
+    else if (scene==='stageSelect') updateStageSelect();
     else if (scene==='fight') updateFight();
     else if (scene==='matchEnd'){
       if (pressed['KeyJ'] || pressed['Enter']){ sfx.confirm(); returnToMenu(); }
@@ -2524,6 +2755,7 @@ function loop(){
     // 特效更新
     for (const p of particles){
       if (p.type==='flame'){ p.x+=p.vx; p.y+=p.vy; p.r*=0.93; }
+      else if (p.type==='smoke'){ p.x+=p.vx; p.y+=p.vy; p.vx*=.94; p.vy*=.95; p.r*=1.012; }
       else if (p.type==='debris'){
         p.x+=p.vx; p.y+=p.vy; p.vy+=0.5;
         if (p.y>GROUND){ p.y=GROUND; p.vy*=-0.4; p.vx*=0.6; }
@@ -2540,6 +2772,8 @@ function loop(){
     rings = rings.filter(r=>r.life>0);
     for (const b of banners) b.t++;
     banners = banners.filter(b=>b.t<58);
+    for (const d of decoys){ d.t++; d.life--; }
+    decoys=decoys.filter(d=>d.life>0);
     if (superDark>0) superDark--;
     for (const k in pressed) pressed[k]=false;
   }
