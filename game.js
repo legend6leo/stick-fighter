@@ -241,8 +241,6 @@ let superDark = 0;                               // 大招暗幕
 let screenFlash = 0, screenFlashC = '#ffffff';   // 全屏闪光
 let particles = [], floaters = [], projectiles = [], rings = [], embers = [], banners = [], decoys = [];
 let frame = 0;
-let tutorialCompleted=false;
-let tutorial={active:false,step:0,seenJumpOrBlock:false};
 const substituteTouch = document.querySelector?.('.touch-key[data-code="KeyH"]') || null;
 const substituteTouchLabel = substituteTouch?.querySelector('span') || null;
 
@@ -596,32 +594,11 @@ function playerIntents(f){
   return it;
 }
 
-function updateTutorial(it){
-  if (!tutorial.active || fight.phase!=='play') return;
-  if (tutorial.step===0 && (it.left||it.right)) tutorial.step=1;
-  else if (tutorial.step===1 && it.atk) tutorial.step=2;
-  else if (tutorial.step===2 && (it.jump||it.down)) tutorial.step=3;
-  else if (tutorial.step===3 && it.u){
-    tutorial.active=false;
-    tutorialCompleted=true;
-    floaters.push({x:fight.p.x,y:fight.p.y-145,txt:'基础招式已掌握!',c:'#ffe9a8',t:0});
-  }
-}
-
-function tutorialTip(){
+function contextTip(){
   if (!fight || fight.phase!=='play') return null;
   const p=fight.p;
   if (p.state==='hit' && p.subCd<=0) return {title:'被连击时',text:`按 H${touchMode?'（紫色替身键）':''} 脱身到敌人背后`};
   if (p.state==='hit' && p.airborne && p.vy>1) return {title:'即将落地',text:'按 A 或 D 受身，快速起身并获得短暂无敌'};
-  if (tutorial.active){
-    const steps=[
-      {title:'第一步 · 走位',text:'按 A / D 靠近或拉开距离'},
-      {title:'第二步 · 进攻',text:'按 J 普通攻击，连续按可形成连段'},
-      {title:'第三步 · 防守',text:'按 S 防御，或按 K 跳上平台改变位置'},
-      {title:'第四步 · 角色技',text:'按 U 使用角色技能，上/下方向可以派生'},
-    ];
-    return steps[tutorial.step];
-  }
   if (!p.awakened && p.meter>=100) return {title:'气已满',text:'按 O 释放大招，或同时按 J + K 觉醒'};
   if (p.meter>=SP_COST && p.meter<100) return {title:'气槽可用',text:'按 I 使用必杀；配合 W / S 可改变招式'};
   return null;
@@ -1511,7 +1488,6 @@ function updateFight(){
   if (F.phase==='play' || F.phase==='ko'){
     const pIt = (F.phase==='play' && !F.p.isCPU) ? playerIntents(F.p) : {};
     const cIt = (F.phase==='play') ? aiIntents(F.c, F.p, F.diff) : {};
-    updateTutorial(pIt);
     updateFighter(F.p, F.c, pIt);
     updateFighter(F.c, F.p, cIt);
     pushApart(F.p, F.c);
@@ -1591,7 +1567,7 @@ function draw(){
   drawArena();
   ctx.restore();
   drawHud();
-  drawTutorial();
+  drawContextTip();
   drawBanners();
   if (screenFlash>0.02){
     const flashAlpha=preferences.reducedFx?Math.min(0.12,screenFlash*0.24):Math.min(0.6,screenFlash);
@@ -1607,8 +1583,8 @@ function draw(){
   }
 }
 
-function drawTutorial(){
-  const tip=tutorialTip();
+function drawContextTip(){
+  const tip=contextTip();
   if (!tip) return;
   const w=touchMode?590:560, h=64, x=(W-w)/2, y=touchMode?438:548;
   ctx.save();
@@ -2717,7 +2693,6 @@ function startSelectedFight(){
   stage=STAGES[stageSel];
   fight=makeFight(CHARS[menuSel],CHARS[cpuIndex],DIFFS[diffSel]);
   resetBattleEffects();
-  tutorial={active:!tutorialCompleted,step:0,seenJumpOrBlock:false};
   scene='fight'; paused=false;
   syncGameUi();
 }
