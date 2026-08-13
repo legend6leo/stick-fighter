@@ -113,6 +113,32 @@
     outline:2px solid #ffb05e;
     outline-offset:2px;
   }
+  .pause-settings{display:flex;gap:8px;margin-top:12px}
+  .pause-settings button{
+    flex:1;
+    min-height:42px;
+    border:1px solid rgba(201,167,255,.45);
+    border-radius:9px;
+    background:#1d1923;
+    color:#e9def7;
+    font:600 13px/1.2 "Microsoft YaHei",system-ui,sans-serif;
+    cursor:pointer;
+  }
+  .pause-settings button:hover,.pause-settings button:focus-visible{
+    background:#342840;
+    outline:2px solid #c9a7ff;
+    outline-offset:2px;
+  }
+  .pause-moves{
+    margin:12px 0 0;
+    padding:10px 12px;
+    border-radius:8px;
+    background:#0d0b10;
+    color:#d8cfca;
+    font:12px/1.55 "Microsoft YaHei",system-ui,sans-serif;
+    text-align:left;
+  }
+  .pause-moves strong{color:#ffcf91}
   html.game-paused .touch-controls{display:none!important}
   .control-pad{
     display:grid;
@@ -120,6 +146,10 @@
     grid-template-rows:repeat(2,var(--control-size));
     gap:var(--control-gap);
     pointer-events:auto;
+  }
+  .control-pad--action{
+    grid-template-columns:repeat(4,var(--control-size));
+    grid-template-rows:repeat(2,var(--control-size));
   }
   .control-pad--move .touch-key[data-code="KeyW"]{grid-column:2;grid-row:1}
   .control-pad--move .touch-key[data-code="KeyA"]{grid-column:1;grid-row:2}
@@ -149,6 +179,14 @@
   .touch-key[data-code="KeyK"]{border-color:#ffd75e;background:rgba(105,76,12,.72)}
   .touch-key[data-code="KeyI"],
   .touch-key[data-code="KeyO"]{border-color:#7edfff;background:rgba(13,74,96,.72)}
+  .touch-key[data-code="KeyH"]{border-color:#c9a7ff;background:rgba(66,35,102,.78)}
+  .touch-key[data-code="KeyH"].is-ready{
+    border-color:#fff;
+    background:rgba(112,64,164,.92);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 0 8px rgba(201,167,255,.72);
+  }
+  .touch-key[data-code="KeyH"].is-cooling{opacity:.5}
+  .touch-key.is-muted{opacity:.26}
   .touch-key.is-active{
     transform:scale(.92);
     background:rgba(255,255,255,.30);
@@ -174,6 +212,16 @@
     html.mobile-mode .rotate-hint{display:flex}
     html.mobile-mode .touch-controls{display:none}
   }
+  @media (max-height:450px){
+    .pause-panel{padding:16px 22px}
+    .pause-panel h2{font-size:26px}
+    .pause-panel p{margin-bottom:10px}
+    .pause-actions{gap:6px}
+    .pause-actions button{min-height:38px}
+    .pause-settings{margin-top:7px}
+    .pause-settings button{min-height:36px}
+    .pause-moves{margin-top:7px;padding:7px 10px;font-size:10px;line-height:1.4}
+  }
   @media (prefers-reduced-motion:reduce){
     .touch-key{transition:none}
   }
@@ -194,6 +242,7 @@
       <button class="touch-key" data-code="KeyU" aria-label="技能">U<span>技</span></button>
       <button class="touch-key" data-code="KeyI" aria-label="必杀">I<span>必杀</span></button>
       <button class="touch-key" data-code="KeyO" aria-label="大招">O<span>大招</span></button>
+      <button class="touch-key" data-code="KeyH" aria-label="受击时替身到敌人身后">H<span>替身</span></button>
       <button class="touch-key" data-code="KeyL" aria-label="瞬移">L<span>闪</span></button>
       <button class="touch-key" data-code="KeyK" aria-label="跳跃">K<span>跳</span></button>
       <button class="touch-key" data-code="KeyJ" aria-label="普通攻击和确认">J<span>攻击</span></button>
@@ -208,6 +257,11 @@
         <button id="pause-restart" type="button">重新开始本场</button>
         <button id="pause-select" type="button">返回选人</button>
       </div>
+      <div class="pause-settings" aria-label="游戏设置">
+        <button id="sound-toggle" type="button">音效：开</button>
+        <button id="effects-toggle" type="button">闪光震屏：标准</button>
+      </div>
+      <div id="pause-moves" class="pause-moves" aria-label="当前角色招式表"></div>
     </div>
   </section>
 </main>
@@ -215,6 +269,6 @@
   请将手机横过来
   <span>横屏后会显示虚拟键位</span>
 </div>
-<script src="game.js?v=5"></script>
+<script src="game.js?v=8"></script>
 </body>
 </html>
