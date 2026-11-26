@@ -26,6 +26,7 @@
   body{display:flex;align-items:center;justify-content:center}
   #game-shell{
     position:relative;
+    isolation:isolate;
     width:min(100vw,calc(100vh * 16 / 9));
     aspect-ratio:16/9;
     overflow:hidden;
@@ -70,6 +71,19 @@
     background:#2b1b20;
     outline:2px solid #ffb05e;
     outline-offset:2px;
+  }
+  #menu-language{
+    top:max(8px,env(safe-area-inset-top));
+    font-size:14px;
+  }
+  .rotate-hint .language-toggle{
+    position:static;
+    margin-top:16px;
+  }
+  .pause-panel{
+    max-height:100%;
+    overflow-y:auto;
+    touch-action:pan-y;
   }
   .pause-overlay{
     position:absolute;
@@ -230,7 +244,8 @@
 <body>
 <main id="game-shell" aria-label="火柴人格斗游戏">
   <canvas id="c" width="1280" height="720" aria-label="火柴人格斗画面"></canvas>
-  <button id="pause-toggle" class="pause-button" type="button" aria-label="暂停游戏" hidden>暂停</button>
+  <button id="menu-language" class="pause-button language-toggle" type="button" lang="en">English</button>
+  <button id="pause-toggle" class="pause-button" type="button" aria-label="暂停游戏" data-i18n hidden>暂停</button>
   <div class="touch-controls" aria-label="手机触控键位">
     <div class="control-pad control-pad--move" aria-label="移动和防御">
       <button class="touch-key" data-code="KeyW" aria-label="向上和招式派生">W<span>上</span></button>
@@ -250,25 +265,27 @@
   </div>
   <section id="pause-overlay" class="pause-overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
     <div class="pause-panel">
-      <h2 id="pause-title">战斗暂停</h2>
-      <p><span class="desktop-pause-hint">按 Esc 或 P 可以继续战斗</span><span class="touch-pause-hint">点击“继续战斗”即可返回</span></p>
+      <h2 id="pause-title" data-i18n>战斗暂停</h2>
+      <p><span class="desktop-pause-hint" data-i18n>按 Esc 或 P 可以继续战斗</span><span class="touch-pause-hint" data-i18n>点击“继续战斗”即可返回</span></p>
       <div class="pause-actions">
-        <button id="pause-resume" type="button">继续战斗</button>
-        <button id="pause-restart" type="button">重新开始本场</button>
-        <button id="pause-select" type="button">返回选人</button>
+        <button id="pause-resume" type="button" data-i18n>继续战斗</button>
+        <button id="pause-restart" type="button" data-i18n>重新开始本场</button>
+        <button id="pause-select" type="button" data-i18n>返回选人</button>
       </div>
       <div class="pause-settings" aria-label="游戏设置">
         <button id="sound-toggle" type="button">音效：开</button>
         <button id="effects-toggle" type="button">闪光震屏：标准</button>
+        <button class="language-toggle" type="button" lang="en">English</button>
       </div>
       <div id="pause-moves" class="pause-moves" aria-label="当前角色招式表"></div>
     </div>
   </section>
 </main>
 <div class="rotate-hint" role="status">
-  请将手机横过来
-  <span>横屏后会显示虚拟键位</span>
+  <strong data-i18n>请将手机横过来</strong>
+  <span data-i18n>横屏后会显示虚拟键位</span>
+  <button class="pause-button language-toggle" type="button" lang="en">English</button>
 </div>
-<script src="game.js?v=8"></script>
+<script src="game.js?v=9"></script>
 </body>
 </html>

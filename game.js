@@ -18,14 +18,217 @@ const SUBSTITUTE_COOLDOWN = 540;                  // 免费替身，9 秒冷却
 const SUBSTITUTE_IFRAMES = 24;                    // 替身后 0.4 秒无敌
 
 const preferences = {
+  language: navigator.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en',
   sound: true,
   reducedFx: matchMedia('(prefers-reduced-motion: reduce)').matches,
 };
 try{
   const saved=JSON.parse(localStorage.getItem('stick-fighter-settings')||'null');
+  if (saved && ['zh-CN','en'].includes(saved.language)) preferences.language = saved.language;
   if (saved && typeof saved.sound==='boolean') preferences.sound=saved.sound;
   if (saved && typeof saved.reducedFx==='boolean') preferences.reducedFx=saved.reducedFx;
 }catch(e){}
+
+// Chinese strings double as the source text so the game still runs from two files.
+const english = {
+  "烈拳·炎": "Blaze",
+  "均衡拳法": "Balanced boxer",
+  "烈焰冲拳": "Flame Rush",
+  "升龙焰": "Rising Dragon",
+  "炎爆滑踢": "Flame Slide",
+  "百裂连拳": "Hundred Fists",
+  "炎弹": "Fireball",
+  "焰刃升": "Rising Flame",
+  "火地刺": "Flame Spikes",
+  "焰皇燃魂": "Inferno Soul",
+  "速度与力量兼备，冲拳突进威胁极大": "A balance of speed and power. Close the gap with Flame Rush.",
+  "疾影·风": "Gale",
+  "高速腿法": "Swift kicker",
+  "燕返飞踢": "Swallow Kick",
+  "旋风升踢": "Cyclone Kick",
+  "疾风滑铲": "Gale Slide",
+  "旋风连脚": "Cyclone Flurry",
+  "风刃": "Wind Blade",
+  "升风刃": "Rising Gust",
+  "残影突": "Phantom Rush",
+  "岚神降临": "Storm Avatar",
+  "身法如风，出招极快，但较为脆皮": "Fast feet and quick strikes, but little health to spare.",
+  "崩山·岩": "Crag",
+  "刚猛重击": "Heavy hitter",
+  "裂地震波": "Fault Line",
+  "崩岳掌": "Summit Palm",
+  "震山跺": "Quake Stomp",
+  "天崩地裂": "Earthshatter",
+  "飞石": "Boulder Toss",
+  "顶天肘": "Skyward Elbow",
+  "岩踏": "Stone Stomp",
+  "崩天怒霸": "Titan Fury",
+  "血厚攻高，震波远程压制，就是腿短跑不快": "Slow on foot, but tough. Send shockwaves across the arena.",
+  "居合·刹": "Setsuna",
+  "拔刀居合": "Quick-draw sword",
+  "居合·月华": "Moon Draw",
+  "升月斩": "Rising Moon",
+  "纳刀突": "Sheathed Thrust",
+  "一闪·万象": "Thousandfold Flash",
+  "飞燕刃": "Swallow Blade",
+  "燕返": "Swallow Reversal",
+  "落樱": "Falling Petals",
+  "心眼·无想": "Clear Mind",
+  "拔刀居合，出鞘一闪爆发极高，判定长但需要贴身把握时机": "Time a quick draw at close range for a burst of sword damage.",
+  "青岚·竹": "Bamboo",
+  "长棍武艺": "Long staff",
+  "横扫千军": "Staff Sweep",
+  "撑杆冲霄": "Vaulting Kick",
+  "苍龙摆尾": "Dragon Sweep",
+  "万竹穿林": "Bamboo Barrage",
+  "飞叶刃": "Leaf Blade",
+  "竹影升": "Rising Staff",
+  "盘根错节": "Tangled Roots",
+  "青竹傲雪": "Evergreen",
+  "一寸长一寸强，棍法大开大合，中距离压制大师": "Sweep with the long staff to keep rivals at mid-range.",
+  "简单": "Easy",
+  "普通": "Normal",
+  "困难": "Hard",
+  "落霞荒野": "Sunset Wastes",
+  "月夜天台": "Moonlit Rooftop",
+  "雪岭神社": "Snowpeak Shrine",
+  "熔岩洞窟": "Lava Cavern",
+  "火柴人格斗": "Stick Fighter",
+  "火柴人格斗游戏": "Stick Fighter game",
+  "火柴人格斗画面": "Stick Fighter arena",
+  "暂停": "Pause",
+  "暂停游戏": "Pause game",
+  "手机触控键位": "Touch controls",
+  "移动和防御": "Movement and guard",
+  "战斗操作": "Combat controls",
+  "向上和招式派生": "Up and upper move variants",
+  "向左移动": "Move left",
+  "防御和向下派生": "Guard and lower move variants",
+  "向右移动": "Move right",
+  "技能": "Skill",
+  "必杀": "Special",
+  "大招": "Super",
+  "受击时替身到敌人身后": "Escape behind your opponent during hitstun",
+  "瞬移": "Dash",
+  "跳跃": "Jump",
+  "普通攻击和确认": "Attack or confirm",
+  "战斗暂停": "Match paused",
+  "按 Esc 或 P 可以继续战斗": "Press Esc or P to resume",
+  "点击“继续战斗”即可返回": "Tap Resume to return to the match",
+  "继续战斗": "Resume",
+  "重新开始本场": "Restart match",
+  "返回选人": "Choose fighter",
+  "游戏设置": "Game settings",
+  "当前角色招式表": "Fighter move list",
+  "请将手机横过来": "Rotate your phone",
+  "横屏后会显示虚拟键位": "Turn sideways to use the touch controls",
+  "音效：开": "Sound on",
+  "音效：关": "Sound off",
+  "闪光震屏：减弱": "Effects reduced",
+  "闪光震屏：标准": "Effects standard",
+  "{0} 招式": "{0} moves",
+  "进入战斗后可在这里查看当前角色招式。": "Start a match to see your moves here.",
+  "上": "Up",
+  "左": "Left",
+  "防": "Guard",
+  "右": "Right",
+  "技": "Skill",
+  "替身": "Escape",
+  "闪": "Dash",
+  "跳": "Jump",
+  "攻击": "Attack",
+  "角色−": "Prev",
+  "角色+": "Next",
+  "下一步": "Next",
+  "地图−": "Prev",
+  "地图+": "Next",
+  "难度−": "Easier",
+  "难度+": "Harder",
+  "开战": "Fight",
+  "返回": "Back",
+  "觉醒·{0}": "Awakened {0}",
+  "必杀・{0}": "Super · {0}",
+  "觉醒・{0}": "Awakening · {0}",
+  "完美格挡!": "Parry!",
+  "防御!": "Blocked!",
+  "被连击时": "Caught in a combo?",
+  "按 H 脱身到敌人背后": "Press H during a hit to escape behind your opponent.",
+  "按 H（紫色替身键）脱身到敌人背后": "Tap H (the purple button) during a hit to escape behind your opponent.",
+  "即将落地": "About to land?",
+  "按 A 或 D 受身，快速起身并获得短暂无敌": "Hold A or D as you land to roll and recover safely.",
+  "气已满": "Full meter",
+  "按 O 释放大招，或同时按 J + K 觉醒": "Use O for a super, or press J + K together to awaken.",
+  "气槽可用": "Special ready",
+  "按 I 使用必杀；配合 W / S 可改变招式": "Use I for a special. Hold W or S to change the move.",
+  "替身冷却 {0}秒": "Escape ready in {0}s",
+  "替身!": "Escape!",
+  "弹地!": "Ground bounce!",
+  "受身!无敌!": "Safe recovery!",
+  "撞墙!": "Wall bounce!",
+  "气不足!": "Low meter!",
+  "躲开了!": "Dodged!",
+  "第 {0} 回合": "Round {0}",
+  "开打!": "Fight!",
+  "时间到": "Time up",
+  "平局": "Draw",
+  "(你)": "(You)",
+  "(电脑)": "(CPU)",
+  "{0} {1} 胜": "{0} {1} wins",
+  "胜  利 !": "Victory!",
+  "败  北 …": "Defeat",
+  "你的 {0} 击败了 {1}电脑 {2}": "Your {0} defeated {2} ({1} CPU).",
+  "{0}电脑的 {1} 更胜一筹，再来！": "{1} ({0} CPU) won the match. Try again!",
+  "按 J 返回选人": "Press J to choose a fighter",
+  "{0} 连击!": "{0} hits!",
+  "H 替身": "H Escape",
+  "{0}秒": "{0}s",
+  "(电脑·{0})": "(CPU · {0})",
+  "满气!": "Full meter!",
+  "J+K 觉醒 / O 大招!": "J+K Awaken / O Super",
+  "A/D移动  K跳  S防御  J连击  U技  I必杀  O大招  L瞬移  H受击替身  落地A/D受身": "A/D Move   K Jump   S Guard   J Attack   U Skill   I Special   O Super   L Dash   H Escape on hit   A/D Roll on landing",
+  "选择战场": "Choose an arena",
+  "{0} · {1}电脑": "{0} · {1} CPU",
+  "{0} 处平台 · 只改变走位，不造成伤害": "{0} platforms · Jump up through them to reposition",
+  "难度：{0}": "Difficulty: {0}",
+  "A / D 选择地图    W / S 调整难度    J 确认开战    K 返回选人": "A / D   Arena      W / S   Difficulty      J   Fight      K   Back",
+  "火 柴 人 格 斗": "Stick Fighter",
+  "STICK  FIGHTER": "Choose your fighter",
+  "HP {0} · 招牌：{1}": "{0} HP · {1}",
+  "觉醒：{0}": "Awakening: {0}",
+  "A / D 选角色    J 或回车进入地图选择": "A / D   Choose fighter      J or Enter   Continue",
+  "v5.1 · 仅在本机保存游戏设置 · 不上传或收集玩家数据": "v5.1 · Settings are saved on this device. No player data is collected."
+};
+
+function t(source, ...values) {
+  const phrase = preferences.language === 'en' ? (english[source] ?? source) : source;
+  if (!values.length) return phrase;
+  return phrase.replace(/\{(\d+)\}/g, (_, i) => values[i]);
+}
+
+const staticLabels = [...document.querySelectorAll('[data-i18n]')].map(el => [el, el.textContent]);
+const accessibleLabels = [...document.querySelectorAll('[aria-label]')].map(el => [el, el.getAttribute('aria-label')]);
+const languageButtons = document.querySelectorAll('.language-toggle');
+function syncLanguage() {
+  document.documentElement.lang = preferences.language;
+  document.title = t('火柴人格斗');
+  for (const [el, label] of staticLabels) el.textContent = t(label);
+  for (const [el, label] of accessibleLabels) el.setAttribute('aria-label', t(label));
+  for (const button of languageButtons) {
+    const chinese = preferences.language === 'zh-CN';
+    button.textContent = chinese ? 'English' : '中文';
+    button.lang = chinese ? 'en' : 'zh-CN';
+    button.setAttribute('aria-label', chinese ? 'Switch to English' : '切换为中文');
+  }
+}
+for (const button of languageButtons) {
+  button.addEventListener('click', event => {
+    preferences.language = preferences.language === 'zh-CN' ? 'en' : 'zh-CN';
+    syncLanguage();
+    savePreferences();
+    // Pointer users can immediately confirm their fighter with Enter.
+    if (event.detail > 0) button.blur();
+  });
+}
 
 // ---------- 输入 ----------
 const keys = {}, pressed = {};
@@ -35,7 +238,8 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if (paused){ e.preventDefault(); return; }
+  if (e.target instanceof HTMLButtonElement && ['Enter','Space','Tab'].includes(e.code)) return;
+  if (paused){ if (e.code !== 'Tab') e.preventDefault(); return; }
   if (!keys[e.code]) pressed[e.code] = true;
   keys[e.code] = true;
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
@@ -252,20 +456,24 @@ function clearInputs(){
 }
 
 function syncGameUi(){
+  document.getElementById('menu-language').hidden = scene === 'fight';
   const canPause = scene==='fight';
   pauseToggle.hidden = !canPause || paused;
   pauseOverlay.hidden = !paused;
   document.documentElement.classList.toggle('game-paused', paused);
-  soundToggle.textContent=`音效：${preferences.sound?'开':'关'}`;
-  effectsToggle.textContent=`闪光震屏：${preferences.reducedFx?'减弱':'标准'}`;
+  soundToggle.textContent=t(preferences.sound ? '音效：开' : '音效：关');
+  effectsToggle.textContent=t(preferences.reducedFx ? '闪光震屏：减弱' : '闪光震屏：标准');
   if (fight){
     const ch=fight.p.ch;
-    pauseMoves.innerHTML=`<strong>${ch.name} 招式</strong><br>U：${ch.uNames.n} / ↑${ch.uNames.up} / ↓${ch.uNames.down}<br>I：${ch.spNames.n} / ↑${ch.spNames.up} / ↓${ch.spNames.down}`;
-  } else pauseMoves.textContent='进入战斗后可在这里查看当前角色招式。';
+    pauseMoves.innerHTML=`<strong>${t('{0} 招式', t(ch.name))}</strong><br>U · ${t(ch.uNames.n)} / ↑${t(ch.uNames.up)} / ↓${t(ch.uNames.down)}<br>I · ${t(ch.spNames.n)} / ↑${t(ch.spNames.up)} / ↓${t(ch.spNames.down)}`;
+  } else pauseMoves.textContent=t('进入战斗后可在这里查看当前角色招式。');
   if (!canPause && substituteTouch){
     substituteTouch.classList.remove('is-ready','is-cooling');
-    if (substituteTouchLabel) substituteTouchLabel.textContent='替身';
-    substituteTouch.setAttribute('aria-label','受击时替身到敌人身后');
+    if (substituteTouchLabel) substituteTouchLabel.textContent=t('替身');
+    substituteTouch.setAttribute('aria-label',t('受击时替身到敌人身后'));
+  }
+  for (const [el, label] of accessibleLabels) {
+    if (el.matches('.touch-key')) el.setAttribute('aria-label', t(label));
   }
   syncTouchLabels();
 }
@@ -279,7 +487,8 @@ function syncTouchLabels(){
   document.querySelectorAll('.touch-key').forEach(button=>{
     const code=button.dataset.code, label=activeMap[code];
     const span=button.querySelector?.('span');
-    if (span && !(code==='KeyH' && scene==='fight')) span.textContent=label||'—';
+    if (span && !(code==='KeyH' && scene==='fight')) span.textContent=t(label || '—');
+    if (scene !== 'fight') button.setAttribute('aria-label', label ? t(label) : '—');
     button.classList.toggle('is-muted',!label);
   });
 }
@@ -374,7 +583,7 @@ class Fighter {
     this.atk = null; this.hasHit = false;
     this.setState('special');
     sfx.special();
-    floaters.push({x:this.x, y:this.y-150, txt:(this.awakened?'觉醒·':'')+this.ch.spNames[v], c:this.glo, t:0});
+    floaters.push({x:this.x, y:this.y-150, txt:this.ch.spNames[v], awakened:this.awakened, c:this.glo, t:0});
     flame(this.x, this.y-55, this.glo, 6, 34);
     rings.push({x:this.x, y:this.y-55, r:14, vr:4, life:12, c:this.glo});
     if (this.ch.id===1 && v==='n'){ this.vy = -9; this.vx = 13*this.face; }
@@ -384,7 +593,7 @@ class Fighter {
     this.atk = null; this.hasHit = false;
     this.setState('uskill');
     sfx.special();
-    floaters.push({x:this.x, y:this.y-150, txt:(this.awakened?'觉醒·':'')+this.ch.uNames[v], c:this.glo, t:0});
+    floaters.push({x:this.x, y:this.y-150, txt:this.ch.uNames[v], awakened:this.awakened, c:this.glo, t:0});
     spark(this.x, this.y-60, this.glo, 4);
   }
   startSuper(){
@@ -394,7 +603,7 @@ class Fighter {
     sfx.superGo();
     freeze = Math.max(freeze, 18);
     shake = Math.max(shake, 8);
-    banner('必杀・' + this.ch.supName, this.col);
+    banner('必杀・{0}', this.ch.supName, this.col);
     superDark = 52;
     zoomP = 1; zoomX = this.x; zoomY = this.y - 70;
     flame(this.x, this.y-50, this.glo, 14, 44);
@@ -408,7 +617,7 @@ class Fighter {
     sfx.awaken();
     freeze = Math.max(freeze, 20);
     shake = Math.max(shake, 10);
-    banner('觉醒・' + this.ch.awk.name, this.ch.awk.color);
+    banner('觉醒・{0}', this.ch.awk.name, this.ch.awk.color);
     superDark = 64;
     zoomP = 1.4; zoomX = this.x; zoomY = this.y - 70;
     flame(this.x, this.y-50, this.ch.awk.glow, 16, 50);
@@ -577,7 +786,7 @@ function impactBurst(x,y,c,big=false){
   }
   spark(x, y, c, big?10:5);
 }
-function banner(txt, c){ banners.push({txt, c, t:0}); }
+function banner(txt, move, c){ banners.push({txt, move, c, t:0}); }
 
 // ---------- 玩家输入 → intents ----------
 function playerIntents(f){
@@ -597,7 +806,7 @@ function playerIntents(f){
 function contextTip(){
   if (!fight || fight.phase!=='play') return null;
   const p=fight.p;
-  if (p.state==='hit' && p.subCd<=0) return {title:'被连击时',text:`按 H${touchMode?'（紫色替身键）':''} 脱身到敌人背后`};
+  if (p.state==='hit' && p.subCd<=0) return {title:'被连击时',text:touchMode ? '按 H（紫色替身键）脱身到敌人背后' : '按 H 脱身到敌人背后'};
   if (p.state==='hit' && p.airborne && p.vy>1) return {title:'即将落地',text:'按 A 或 D 受身，快速起身并获得短暂无敌'};
   if (!p.awakened && p.meter>=100) return {title:'气已满',text:'按 O 释放大招，或同时按 J + K 觉醒'};
   if (p.meter>=SP_COST && p.meter<100) return {title:'气槽可用',text:'按 I 使用必杀；配合 W / S 可改变招式'};
@@ -691,7 +900,7 @@ function trySubstitute(f, foe, it){
   if (f.subCd>0){
     if (!f.isCPU && f.msgCd<=0){
       f.msgCd=40;
-      floaters.push({x:f.x,y:f.y-132,txt:`替身冷却 ${Math.ceil(f.subCd/60)}秒`,c:'#b9a7ce',t:0});
+      floaters.push({x:f.x,y:f.y-132,txt:'替身冷却 {0}秒', seconds:Math.ceil(f.subCd/60),c:'#b9a7ce',t:0});
     }
     return false;
   }
@@ -1592,9 +1801,9 @@ function drawContextTip(){
   ctx.strokeStyle='rgba(255,190,112,.78)'; ctx.lineWidth=2; roundRect(x,y,w,h,10); ctx.stroke();
   ctx.textAlign='left';
   ctx.font='bold 17px "Microsoft YaHei",sans-serif'; ctx.fillStyle='#ffbf73';
-  ctx.fillText(tip.title,x+18,y+25);
+  ctx.fillText(t(tip.title),x+18,y+25);
   ctx.font='15px "Microsoft YaHei",sans-serif'; ctx.fillStyle='#fff4e7';
-  ctx.fillText(tip.text,x+18,y+49);
+  ctx.fillText(t(tip.text),x+18,y+49,w-36);
   ctx.restore();
 }
 
@@ -1613,11 +1822,12 @@ function drawBanners(){
     ctx.textAlign = 'center';
     ctx.font = 'bold 64px "Microsoft YaHei", sans-serif';
     ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 8;
-    ctx.strokeText(b.txt, 0, 0);
+    const label = t(b.txt, t(b.move));
+    ctx.strokeText(label, 0, 0, W * 0.82);
     const g = ctx.createLinearGradient(0,-44,0,18);
     g.addColorStop(0,'#ffffff'); g.addColorStop(1,b.c);
     ctx.fillStyle = g;
-    ctx.fillText(b.txt, 0, 0);
+    ctx.fillText(label, 0, 0, W * 0.82);
     ctx.restore();
   }
 }
@@ -2365,7 +2575,8 @@ function drawArena(){
     ctx.globalAlpha = Math.max(0, 1-fl.t/50);
     ctx.font = 'bold 26px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = fl.c;
-    ctx.fillText(fl.txt, fl.x, fl.y - fl.t*0.8);
+    const label = fl.seconds === undefined ? t(fl.txt) : t(fl.txt, fl.seconds);
+    ctx.fillText(fl.awakened ? t('觉醒·{0}', label) : label, fl.x, fl.y - fl.t*0.8);
   }
   ctx.globalAlpha = 1;
 
@@ -2377,28 +2588,28 @@ function drawArena(){
     ctx.font = 'bold 72px "Microsoft YaHei", sans-serif';
     if (F.pt < 70){
       ctx.fillStyle = '#ffe9c8';
-      ctx.fillText(`第 ${F.round} 回合`, W/2, 300);
+      ctx.fillText(t('第 {0} 回合', F.round), W/2, 300);
       ctx.font = '24px "Microsoft YaHei", sans-serif';
       ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fillText(`— ${stage.name} —`, W/2, 348);
+      ctx.fillText(`— ${t(stage.name)} —`, W/2, 348);
     } else {
       const s = 1 + (1 - Math.min(1,(F.pt-70)/12)) * 1.5;
       ctx.save(); ctx.translate(W/2,300); ctx.scale(s,s);
       ctx.fillStyle = '#ff6a3a';
-      ctx.fillText('开打!', 0, 0);
+      ctx.fillText(t('开打!'), 0, 0);
       ctx.restore();
     }
   } else if (F.phase==='ko'){
     ctx.font = 'bold 110px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = '#ffd75e';
     ctx.strokeStyle = '#802010'; ctx.lineWidth = 6;
-    const txt = F.time<=0 && F.winner ? '时间到' : (F.winner ? 'K.O.' : '平局');
+    const txt = t(F.time<=0 && F.winner ? '时间到' : (F.winner ? 'K.O.' : '平局'));
     ctx.strokeText(txt, W/2, 320);
     ctx.fillText(txt, W/2, 320);
     if (F.pt>70 && F.winner){
       ctx.font = 'bold 40px "Microsoft YaHei", sans-serif';
       ctx.fillStyle = '#fff';
-      ctx.fillText(`${F.winner.ch.name} ${F.winner===F.p?'(你)':'(电脑)'} 胜`, W/2, 390);
+      ctx.fillText(t('{0} {1} 胜', t(F.winner.ch.name), t(F.winner===F.p?'(你)':'(电脑)')), W/2, 390);
     }
   }
 
@@ -2408,13 +2619,13 @@ function drawArena(){
     const win = F.matchWinner===F.p;
     ctx.font = 'bold 96px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = win ? '#ffd75e' : '#ff5e5e';
-    ctx.fillText(win ? '胜  利 !' : '败  北 …', W/2, 300);
+    ctx.fillText(t(win ? '胜  利 !' : '败  北 …'), W/2, 300);
     ctx.font = '30px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = '#ddd';
-    ctx.fillText(win ? `你的 ${F.p.ch.name} 击败了 ${F.diff.name}电脑 ${F.c.ch.name}`
-                     : `${F.diff.name}电脑的 ${F.c.ch.name} 更胜一筹，再来！`, W/2, 370);
+    ctx.fillText(win ? t('你的 {0} 击败了 {1}电脑 {2}', t(F.p.ch.name), t(F.diff.name), t(F.c.ch.name))
+                     : t('{0}电脑的 {1} 更胜一筹，再来！', t(F.diff.name), t(F.c.ch.name)), W/2, 370);
     ctx.fillStyle = '#ffe9c8';
-    ctx.fillText('按 J 返回选人', W/2, 450);
+    ctx.fillText(t('按 J 返回选人'), W/2, 450);
   }
 }
 
@@ -2429,9 +2640,9 @@ function drawCombo(){
     ctx.textAlign = left ? 'left' : 'right';
     ctx.font = 'bold 48px "Microsoft YaHei", sans-serif';
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 6;
-    ctx.strokeText(`${f.combo} 连击!`, 0, 0);
+    ctx.strokeText(t('{0} 连击!', f.combo), 0, 0);
     ctx.fillStyle = col;
-    ctx.fillText(`${f.combo} 连击!`, 0, 0);
+    ctx.fillText(t('{0} 连击!', f.combo), 0, 0);
     ctx.restore();
   }
 }
@@ -2495,19 +2706,19 @@ function drawHud(){
       const fill=ready?1:1-f.subCd/SUBSTITUTE_COOLDOWN;
       ctx.fillStyle=ready?'#b98aff':'#655879'; ctx.fillRect(sx,y0+bh+8,sw*fill,12);
       ctx.font='bold 10px "Microsoft YaHei",sans-serif'; ctx.textAlign='center'; ctx.fillStyle='#fff';
-      ctx.fillText(ready?'H 替身':`H ${Math.ceil(f.subCd/60)}秒`,sx+sw/2,y0+bh+17);
+      ctx.fillText(ready ? t('H 替身') : 'H ' + t('{0}秒', Math.ceil(f.subCd/60)),sx+sw/2,y0+bh+17);
     }
     // 名字 & 胜场
     ctx.font = 'bold 20px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = f.col;
     ctx.textAlign = left?'left':'right';
-    const awkTag = f.awakened ? ' ['+f.ch.awk.name+']' : '';
-    ctx.fillText(`${f.ch.name}${awkTag} ${f.isCPU?'(电脑·'+F.diff.name+')':'(你)'}`, left?x0:x0+bw, y0+bh+42);
+    const awkTag = f.awakened ? ' ['+t(f.ch.awk.name)+']' : '';
+    ctx.fillText(`${t(f.ch.name)}${awkTag} ${f.isCPU ? t('(电脑·{0})', t(F.diff.name)) : t('(你)')}`, left?x0:x0+bw, y0+bh+42);
     // 满气觉醒提示
     if (!f.awakened && f.meter>=100 && frame%40<26){
       ctx.font = 'bold 14px "Microsoft YaHei", sans-serif';
       ctx.fillStyle = '#ffe95e';
-      ctx.fillText(f.isCPU?'满气!':'J+K 觉醒 / O 大招!', left?x0:x0+bw, y0+bh+64);
+      ctx.fillText(t(f.isCPU?'满气!':'J+K 觉醒 / O 大招!'), left?x0:x0+bw, y0+bh+64);
     }
     for(let i=0;i<2;i++){
       ctx.beginPath();
@@ -2528,15 +2739,15 @@ function drawHud(){
     const usable=ready && F.p.state==='hit' && F.phase==='play';
     substituteTouch.classList.toggle('is-ready',usable);
     substituteTouch.classList.toggle('is-cooling',!ready);
-    if (substituteTouchLabel) substituteTouchLabel.textContent=ready?'替身':`${Math.ceil(F.p.subCd/60)}秒`;
-    substituteTouch.setAttribute('aria-label',ready?'受击时替身到敌人身后':`替身冷却 ${Math.ceil(F.p.subCd/60)}秒`);
+    if (substituteTouchLabel) substituteTouchLabel.textContent=ready ? t('替身') : t('{0}秒', Math.ceil(F.p.subCd/60));
+    substituteTouch.setAttribute('aria-label',ready ? t('受击时替身到敌人身后') : t('替身冷却 {0}秒', Math.ceil(F.p.subCd/60)));
   }
   // 桌面操作提示使用稳定深色底板；手机由屏幕按键承载，不再重复遮挡
   if (!touchMode){
     ctx.fillStyle='rgba(6,6,10,.78)'; roundRect(142,H-42,W-284,34,8); ctx.fill();
     ctx.font = '15px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = '#f2e8df';
-    ctx.fillText('A/D移动  K跳  S防御  J连击  U技  I必杀  O大招  L瞬移  H受击替身  落地A/D受身', W/2, H-19);
+    ctx.fillText(t('A/D移动  K跳  S防御  J连击  U技  I必杀  O大招  L瞬移  H受击替身  落地A/D受身'), W/2, H-19);
   }
 }
 
@@ -2548,16 +2759,16 @@ function drawStageSelect(){
   ctx.fillStyle='rgba(8,8,14,.82)'; ctx.fillRect(0,0,W,148);
   ctx.textAlign='center';
   ctx.font='bold 42px "Microsoft YaHei",sans-serif'; ctx.fillStyle='#ffe9c8';
-  ctx.fillText('选择战场',W/2,top+48);
+  ctx.fillText(t('选择战场'),W/2,top+48);
   ctx.font='18px "Microsoft YaHei",sans-serif'; ctx.fillStyle='rgba(255,255,255,.74)';
-  ctx.fillText(`${CHARS[menuSel].name} · ${DIFFS[diffSel].name}电脑`,W/2,top+84);
+  ctx.fillText(t('{0} · {1}电脑', t(CHARS[menuSel].name), t(DIFFS[diffSel].name)),W/2,top+84);
 
   ctx.fillStyle='rgba(7,7,12,.82)'; roundRect(360,472,560,156,14); ctx.fill();
   ctx.strokeStyle='rgba(255,185,104,.74)'; ctx.lineWidth=2; roundRect(360,472,560,156,14); ctx.stroke();
   ctx.font='bold 38px "Microsoft YaHei",sans-serif'; ctx.fillStyle='#ffb05e';
-  ctx.fillText(`‹  ${selected.name}  ›`,W/2,520);
+  ctx.fillText(`‹  ${t(selected.name)}  ›`,W/2,520);
   ctx.font='15px "Microsoft YaHei",sans-serif'; ctx.fillStyle='rgba(255,255,255,.72)';
-  ctx.fillText(`${selected.platforms.length} 处平台 · 只改变走位，不造成伤害`,W/2,552);
+  ctx.fillText(t('{0} 处平台 · 只改变走位，不造成伤害', selected.platforms.length),W/2,552);
 
   const startX=W/2-(STAGES.length-1)*82/2;
   STAGES.forEach((st,i)=>{
@@ -2566,9 +2777,9 @@ function drawStageSelect(){
     ctx.fillStyle=active?'#ffb05e':'rgba(255,255,255,.35)'; ctx.fill();
   });
   ctx.font='bold 18px "Microsoft YaHei",sans-serif'; ctx.fillStyle=DIFFS[diffSel].color;
-  ctx.fillText(`难度：${DIFFS[diffSel].name}`,W/2,611);
+  ctx.fillText(t('难度：{0}', t(DIFFS[diffSel].name)),W/2,611);
   ctx.font='16px "Microsoft YaHei",sans-serif'; ctx.fillStyle='rgba(255,255,255,.78)';
-  ctx.fillText('A / D 选择地图    W / S 调整难度    J 确认开战    K 返回选人',W/2,674);
+  ctx.fillText(t('A / D 选择地图    W / S 调整难度    J 确认开战    K 返回选人'),W/2,674);
 }
 
 // ---------- 菜单 ----------
@@ -2579,10 +2790,10 @@ function drawMenu(){
   const tg = ctx.createLinearGradient(0,60,0,170);
   tg.addColorStop(0,'#ffe9a8'); tg.addColorStop(1,'#ff6a3a');
   ctx.fillStyle = tg;
-  ctx.fillText('火 柴 人 格 斗', W/2, 150);
+  ctx.fillText(t('火 柴 人 格 斗'), W/2, 150);
   ctx.font = '22px "Microsoft YaHei", sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.fillText('STICK  FIGHTER', W/2, 190);
+  ctx.fillText(t('STICK  FIGHTER'), W/2, 190);
 
   // 角色卡(5 张)
   const n = CHARS.length;
@@ -2607,28 +2818,28 @@ function drawMenu(){
     ctx.textAlign='center';
     ctx.font = 'bold 27px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = ch.color;
-    ctx.fillText(ch.name, x+cw/2, y+42);
+    ctx.fillText(t(ch.name), x+cw/2, y+42);
     ctx.font = '17px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText(ch.style, x+cw/2, y+68);
+    ctx.fillText(t(ch.style), x+cw/2, y+68);
     ctx.font = '13px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    ctx.fillText(`HP ${ch.hp} · 招牌：${ch.spNames.n}`, x+cw/2, y+226);
+    ctx.fillText(t('HP {0} · 招牌：{1}', ch.hp, t(ch.spNames.n)), x+cw/2, y+226, cw-12);
     ctx.fillStyle = 'rgba(255,230,150,0.82)';
-    ctx.fillText(`觉醒：${ch.awk.name}`, x+cw/2, y+252);
+    ctx.fillText(t('觉醒：{0}', t(ch.awk.name)), x+cw/2, y+252, cw-12);
   }
   if (menuSel>=0){
     ctx.textAlign='center';
     ctx.font = '19px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText(CHARS[menuSel].desc, W/2, 554);
+    ctx.fillText(t(CHARS[menuSel].desc), W/2, 554);
   }
   ctx.font = 'bold 22px "Microsoft YaHei", sans-serif';
   ctx.fillStyle = '#ffe9c8';
-  ctx.fillText('A / D 选角色    J 或回车进入地图选择', W/2, 626);
+  ctx.fillText(t('A / D 选角色    J 或回车进入地图选择'), W/2, 626);
   ctx.font = '14px "Microsoft YaHei", sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,.62)';
-  ctx.fillText('v5.1 · 仅在本机保存游戏设置 · 不上传或收集玩家数据',W/2,684);
+  ctx.fillText(t('v5.1 · 仅在本机保存游戏设置 · 不上传或收集玩家数据'),W/2,684);
 }
 
 function drawMiniStick(ch, active){
@@ -2782,5 +2993,6 @@ function loop(){
   draw();
   requestAnimationFrame(loop);
 }
+syncLanguage();
 syncGameUi();
 loop();

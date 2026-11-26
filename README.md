@@ -2,14 +2,16 @@
 
 **[Play in your browser · 在线试玩](https://legend6leo.github.io/stick-fighter/)** · [中文说明](#中文说明) · [Controls / 键位表](#controls--键位表)
 
-A single-player browser fighting game. Pick one of five stick fighters, face the CPU, and win two rounds. When you get caught in a combo, press **H** during a hit to leave a decoy and slip behind your opponent. The in-game menus and move names are in Chinese.
+A single-player browser fighting game. Pick one of five stick fighters, face the CPU, and win two rounds. When you get caught in a combo, press **H** during a hit to leave a decoy and slip behind your opponent.
+
+Choose **English** or **中文** at the top right of fighter select or in the pause menu. The game remembers your choice on this device.
 
 [![青岚·竹 and 烈拳·炎 trading projectiles on the moonlit rooftop, with health bars and touch controls visible](docs/images/rooftop-duel.png)](https://legend6leo.github.io/stick-fighter/)
 
 ## Your first match
 
-1. Press **A / D** to pick a fighter and **J** to confirm. For a first game, try the red fighter **烈拳·炎**, whose **U** throws a fireball.
-2. On the next screen, **A / D** changes the arena and **W / S** changes the difficulty. Choose **简单** for Easy and press **J** to fight.
+1. Press **A / D** to pick a fighter and **J** to confirm. For a first game, try the red fighter **Blaze**, whose **U** throws a fireball.
+2. On the next screen, **A / D** changes the arena and **W / S** changes the difficulty. Choose **Easy** and press **J** to fight.
 3. Get close and tap **J** for a three-hit chain. With a full meter, spend it on a super (**O**) or awaken (**J + K** together) to power up your moves.
 
 The five styles cover boxing, fast kicks, heavy strikes, a quick-draw sword and a long staff. The four arenas each have platforms you can jump through from below. On a phone, turn it sideways and tap the on-screen keys. Pause to see your fighter’s skill names, restart the match, mute sound, or reduce flashes and screen shake.
@@ -25,6 +27,8 @@ git clone https://github.com/legend6leo/stick-fighter.git
 The game runs directly from those two files. [index.html](index.html) contains the canvas, layout, touch buttons and pause menu. [game.js](game.js) handles input, CPU decisions, combat, Canvas 2D drawing and synthesized Web Audio effects.
 
 ## 中文说明
+
+在选人界面右上角或战斗暂停菜单里，点 **中文** 或 **English** 即可切换语言。游戏会在本机记住你的选择。
 
 选一位火柴人，和电脑打一场先赢两回合的对决。五位角色里，烈拳·炎擅长拳法，疾影·风出腿快，崩山·岩血厚拳重，居合·刹靠拔刀抢时机，青岚·竹能用长棍从中距离压制对手。四张地图都有可以从下方跳上去的平台。
 
@@ -49,7 +53,7 @@ The game runs directly from those two files. [index.html](index.html) contains t
 | W or S + J / U / I | Hold a direction for the upper or lower move variant on the ground | 地面出招时按住 W 或 S，使出上派生或下派生 |
 | H | Substitute during hitstun when ready | 受击硬直时替身，有冷却 |
 | O / J + K | At full meter, use a super (O) or awaken (J + K together) | 满气按 O 放大招，或同时按 J + K 觉醒 |
-| P / Esc | Pause or resume. On touchscreens, tap 暂停 to pause | 暂停或继续，触屏可点「暂停」 |
+| P / Esc | Pause or resume. On touchscreens, tap Pause | 暂停或继续，触屏可点「暂停」 |
 
 ## Feedback / 问题反馈
 
